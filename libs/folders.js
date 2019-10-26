@@ -1,5 +1,5 @@
 var fs = require('fs');
-module.exports = function(s,config){
+module.exports = function(s,config,lang){
     //directories
     s.group = {}
     if(!config.windowsTempDir&&s.isWin===true){config.windowsTempDir='C:/Windows/Temp'}
@@ -40,10 +40,44 @@ module.exports = function(s,config){
         fs.mkdirSync(s.dir.fileBin);
     }
     //additional storage areas
+    s.listOfStorage = [{
+        name: lang['Default'],
+        value: ""
+    }]
     s.dir.addStorage.forEach(function(v,n){
         v.path = s.checkCorrectPathEnding(v.path)
         if(!fs.existsSync(v.path)){
             fs.mkdirSync(v.path);
         }
+        s.listOfStorage.push({
+            name: v.name,
+            value: v.path
+        })
+    })
+    //get audio files list
+    s.listOfAudioFiles = [
+        {
+            name:lang['No Sound'],
+            value:""
+        }
+    ]
+    fs.readdirSync(s.mainDirectory + '/web/libs/audio').forEach(function(file){
+        s.listOfAudioFiles.push({
+            name: file,
+            value: file
+        })
+    })
+    //get themes list
+    s.listOfThemes = [
+        {
+            name:lang['Default'],
+            value:""
+        }
+    ]
+    fs.readdirSync(s.mainDirectory + '/web/libs/themes').forEach(function(folder){
+        s.listOfThemes.push({
+            name: folder,
+            value: folder
+        })
     })
 }

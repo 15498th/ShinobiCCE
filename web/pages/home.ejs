@@ -4,7 +4,7 @@
 <% include blocks/header %>
 <script>var $user = <%- JSON.stringify($user) %>;</script>
 <script>var lang = <%- JSON.stringify(lang) %>;</script>
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/roboto.css" type="text/css" />
+<script>var addStorage = <%- JSON.stringify(addStorage) %>;</script>
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/material-design-iconic-font.min.css" type="text/css" />
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/pnotify.custom.min.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/vbox.css">
@@ -16,19 +16,19 @@
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/gridstack.min.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/gridstack-extra.min.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/bootstrap-table.min.css">
-<!--
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/bootstrap-slider.min.css">
+
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.basic.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.misc.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.monitors.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.monitorStates.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.forms.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.modal.css">
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.monitors.css">
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.powervideo.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.ptzcontrols.css">
 <link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.regioneditor.css">
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.rightotleft.css">
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.timelapse.css">
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/main.dash2.css">
--->
-<link rel="stylesheet" href="<%-window.libURL%>libs/css/main.dash2.old.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.righttoleft.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.sidemenu.css">
+<link rel="stylesheet" href="<%-window.libURL%>libs/css/dash2.darktheme.css">
 <% customAutoLoad.LibsCss.forEach(function(lib){ %>
     <link rel="stylesheet" href="<%-window.libURL%>libs/css/<%-lib%>">
 <% }) %>
@@ -56,7 +56,7 @@
         <ul class="nav navbar-nav">
             <li title="<%-lang['Toggle Sidebar']%>" class_toggle="hide-side" data-target=".mdl-js-layout"><a>&nbsp;<i class="fa fa-bars"></i>&nbsp;</a></li>
             <li title="<%-lang['Add Monitor']%>" mid="" ke="" class="hidden-xs permission_monitor_create"><a monitor="edit">&nbsp;<i class="fa fa-plus"></i>&nbsp;</a></li>
-            <li title="<%-lang['Power Video Viewer']%>" class="hidden-xs" mid="" ke=""><a monitor="powerview">&nbsp;<i class="fa fa-map-marker"></i>&nbsp;</a></li>
+            <li title="<%-lang['Power Video Viewer']%>" class="hidden-xs" data-toggle="modal" data-target="#powerVideo"><a>&nbsp;<i class="fa fa-map-marker"></i>&nbsp;</a></li>
             <li>
                 <a title="<%-lang['Monitor Groups']%>" id="group_list_button" class="mdl-js-button">&nbsp;<i class="fa fa-video-camera"></i>&nbsp;</a>
                 <ul class="mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="group_list_button" id="group_list"></ul>
@@ -101,16 +101,31 @@
                     </ul>
                 </div>
                 </li>
-                <li role="presentation" class="dropdown">
+                <li role="presentation" class="dropdown hidden-xs">
                   <a href="javascript:;" class="dropdown-toggle info-number" data-toggle="dropdown" aria-expanded="true">&nbsp;<i class="fa fa-group"></i>&nbsp;</a>
                   <ul id="users_online" class="dropdown-menu list-unstyled msg_list scrollable" role="menu"></ul>
                 </li>
-<!--
+
                 <li role="presentation" class="dropdown">
-                  <a href="javascript:;" class="dropdown-toggle info-number" data-toggle="dropdown" aria-expanded="true">&nbsp;<i class="fa fa-info-circle"></i>&nbsp;</a>
-                  <ul id="notifications" class="dropdown-menu list-unstyled msg_list scrollable" role="menu"></ul>
+                  <a href="javascript:;" class="dropdown-toggle info-number" data-toggle="dropdown" aria-expanded="true">&nbsp;<i class="fa fa-hdd-o"></i>&nbsp;</a>
+                  <ul id="diskUsedList" class="dropdown-menu list-unstyled msg_list scrollable" role="menu">
+                      <% addStorage.forEach(function(storage){ %>
+                          <li class="log-item" storage="<%- storage.name %>">
+                              <span>
+                                  <div class="title"><%- storage.name %></div>
+                                  <span class="pull-right percent"></span>
+                                  <label><span class="value"></span></label>
+                              </span>
+                              <div class="message">
+                                  <div class="progress">
+                                      <div class="progress-bar progress-bar-warning" role="progressbar"></div>
+                                  </div>
+                              </div>
+                          </li>
+                      <% }) %>
+                  </ul>
                 </li>
--->
+
                 <li role="presentation" class="dropdown">
                   <a href="javascript:;" class="dropdown-toggle info-number" data-toggle="dropdown" aria-expanded="true">&nbsp;<i class="fa fa-exclamation-triangle"></i>&nbsp;</a>
                   <ul id="logs" class="dropdown-menu list-unstyled msg_list scrollable" role="menu">
@@ -125,8 +140,8 @@
             <button id="accbtn" style="color:#fff" class="mdl-button mdl-js-button mdl-js-ripple-effect"><i class="fa fa-caret-down"></i> &nbsp;<span class="usermail"></span></button>
             <ul class="mdl-menu mdl-menu--bottom-left mdl-js-menu mdl-js-ripple-effect" for="accbtn">
                 <li class="mdl-menu__item" data-toggle="modal" data-target="#multi_mon"><div><i class="fa fa-clone"></i><div><%- lang['Monitors'] %></div></div></li>
-                <li class="mdl-menu__item" mid="" ke=""><div class="flex" monitor="powerview"><i class="fa fa-map-marker"></i><div><%- lang['Power Viewer'] %></div></div></li>
-                <li class="mdl-menu__item" mid="" ke=""><div class="flex" monitor="timelapse"><i class="fa fa-angle-double-right"></i><div><%- lang['Time-lapse'] %></div></div></li>
+                <li class="mdl-menu__item" data-toggle="modal" data-target="#powerVideo"><div><i class="fa fa-map-marker"></i><div><%- lang['Power Viewer'] %></div></div></li>
+                <li class="mdl-menu__item" mid="" ke=""><div class="flex" monitor="timelapseJpeg"><i class="fa fa-angle-double-right"></i><div><%- lang['Timelapse'] %></div></div></li>
                 <li class="mdl-menu__item permission_user_change" data-toggle="modal" data-target="#settings"><div><i class="fa fa-gears"></i><div><%- lang.Settings %></div></div></li>
                 <li class="mdl-menu__item" data-toggle="modal" data-target="#apis"><div><i class="fa fa-code"></i><div><%- lang.API %></div></div></li>
                 <% if(!details.sub){ %>
@@ -154,7 +169,7 @@
         </header>
         <nav class="demo-navigation mdl-navigation side-menu" id="left_menu">
             <div class="form-group col-md-12">
-                <input class="form-control dark" placeholder="Search Monitors" id="monitors_list_search">
+                <input class="form-control dark" placeholder="<%- lang.Search %> <%- lang.Monitors %>" id="monitors_list_search">
             </div>
             <div id="monitors_list" class="display-table"></div>
             <div class="mdl-layout-spacer"></div>
@@ -173,7 +188,6 @@
 <% include blocks/logs.ejs %>
 <% include blocks/settings.ejs %>
 <% include blocks/filters.ejs %>
-<% include blocks/powervideo.ejs %>
 <% include blocks/timelapse.ejs %>
 <% include blocks/videoview.ejs %>
 <% include blocks/monitoredit.ejs %>
@@ -183,6 +197,7 @@
 <% include blocks/monitorStates.ejs %>
 <% include blocks/schedules.ejs %>
 <% include blocks/confirm.ejs %>
+<% include blocks/help.ejs %>
 <% customAutoLoad.PageBlocks.forEach(function(block){ %>
     <%- include(block) %>
 <% }) %>
@@ -200,13 +215,16 @@
 <script src="<%-window.libURL%>libs/js/bootstrap-table.min.js"></script>
 <script src="<%-window.libURL%>libs/js/socket.io.js"></script>
 <script src="<%-window.libURL%>libs/js/fullcalendar.min.js"></script>
+<script src="<%-window.libURL%>libs/js/locale-all.js"></script>
 <script src="<%-window.libURL%>libs/js/hls.min.js"></script>
 <script src="<%-window.libURL%>libs/js/libde265.min.js"></script>
+<script src="<%-window.libURL%>libs/js/bootstrap-slider.min.js"></script>
 <script type="text/javascript" src="<%-window.libURL%>libs/js/flv.shinobi.js">;</script>
+<script src="<%-window.libURL%>libs/js/jszip.min.js"></script>
+<script src="<%-window.libURL%>libs/js/dash2.downloadAndZip.js"></script>
 <script src="<%-window.libURL%>libs/js/menu.js"></script>
 <script src="<%-window.libURL%>libs/js/clock.js"></script>
 <script src="<%-window.libURL%>libs/js/poseidon.js"></script>
-<script src="<%-window.libURL%>libs/js/Chart.js"></script>
 <script src="<%-window.libURL%>libs/js/clusterPoints.js"></script>
 <script src="<%-window.libURL%>libs/js/daterangepicker.js"></script>
 <script src="<%-window.libURL%>libs/js/jquery.canvasAreaDraw.js"></script>
@@ -228,3 +246,4 @@
     <script src="<%-window.libURL%>libs/js/<%-lib%>"></script>
 <% }) %>
 <% include blocks/help.ejs %>
+<% include blocks/powerVideo2.ejs %>

@@ -7,11 +7,6 @@ var jsonfile = require("jsonfile");
 var onvif = require("node-onvif");
 module.exports = function(s,config,lang,io){
     s.clientSocketConnection = {}
-    //send data to detector plugin
-    s.ocvTx=function(data){
-        // chaining coming in future update
-        s.sendToAllDetectors(data)
-    }
     //send data to socket client function
     s.tx = function(z,y,x){if(x){return x.broadcast.to(y).emit('f',z)};io.to(y).emit('f',z);}
     s.txToDashcamUsers = function(data,groupKey){
@@ -53,25 +48,9 @@ module.exports = function(s,config,lang,io){
     ////socket controller
     io.on('connection', function (cn) {
         var tx;
-        //set "client" detector plugin event function
-        cn.on('ocv',function(d){
-            if(!cn.pluginEngine && d.f === 'init'){
-                if(config.pluginKeys[d.plug] === d.pluginKey){
-                    s.pluginInitiatorSuccess("client",d,cn)
-                }else{
-                    s.pluginInitiatorFail("client",d,cn)
-                }
-            }else{
-                if(config.pluginKeys[d.plug] === d.pluginKey){
-                    s.pluginEventController(d)
-                }else{
-                    cn.disconnect()
-                }
-            }
-        })
         //unique h265 socket stream
         cn.on('h265',function(d){
-            if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
+            if(!s.group[d.ke]||!s.group[d.ke].activeMonitors||!s.group[d.ke].activeMonitors[d.id]){
                 cn.disconnect();return;
             }
             cn.ip=cn.request.connection.remoteAddress;
@@ -87,10 +66,10 @@ module.exports = function(s,config,lang,io){
                 r=r[0];
                 var Emitter,chunkChannel
                 if(!d.channel){
-                    Emitter = s.group[d.ke].mon[d.id].emitter
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[d.ke].mon[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
                     chunkChannel = parseInt(d.channel)+config.pipeAddition
                 }
                 if(!Emitter){
@@ -144,7 +123,7 @@ module.exports = function(s,config,lang,io){
         })
         //unique Base64 socket stream
         cn.on('Base64',function(d){
-            if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
+            if(!s.group[d.ke]||!s.group[d.ke].activeMonitors||!s.group[d.ke].activeMonitors[d.id]){
                 cn.disconnect();return;
             }
             cn.ip=cn.request.connection.remoteAddress;
@@ -160,10 +139,10 @@ module.exports = function(s,config,lang,io){
                 r=r[0];
                 var Emitter,chunkChannel
                 if(!d.channel){
-                    Emitter = s.group[d.ke].mon[d.id].emitter
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[d.ke].mon[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
                     chunkChannel = parseInt(d.channel)+config.pipeAddition
                 }
                 if(!Emitter){
@@ -217,7 +196,7 @@ module.exports = function(s,config,lang,io){
         })
         //unique FLV socket stream
         cn.on('FLV',function(d){
-            if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
+            if(!s.group[d.ke]||!s.group[d.ke].activeMonitors||!s.group[d.ke].activeMonitors[d.id]){
                 cn.disconnect();return;
             }
             cn.ip=cn.request.connection.remoteAddress;
@@ -233,10 +212,10 @@ module.exports = function(s,config,lang,io){
                 r=r[0];
                 var Emitter,chunkChannel
                 if(!d.channel){
-                    Emitter = s.group[d.ke].mon[d.id].emitter
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[d.ke].mon[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
                     chunkChannel = parseInt(d.channel)+config.pipeAddition
                 }
                 if(!Emitter){
@@ -253,7 +232,7 @@ module.exports = function(s,config,lang,io){
                 cn.closeSocketVideoStream = function(){
                     Emitter.removeListener('data', contentWriter);
                 }
-                tx({time:toUTC(),buffer:s.group[d.ke].mon[d.id].firstStreamChunk[chunkChannel]})
+                tx({time:toUTC(),buffer:s.group[d.ke].activeMonitors[d.id].firstStreamChunk[chunkChannel]})
                 Emitter.on('data',contentWriter = function(buffer){
                     tx({time:toUTC(),buffer:buffer})
                 })
@@ -290,7 +269,7 @@ module.exports = function(s,config,lang,io){
         })
         //unique MP4 socket stream
         cn.on('MP4',function(d){
-            if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
+            if(!s.group[d.ke]||!s.group[d.ke].activeMonitors||!s.group[d.ke].activeMonitors[d.id]){
                 cn.disconnect();return;
             }
             cn.ip=cn.request.connection.remoteAddress;
@@ -306,10 +285,10 @@ module.exports = function(s,config,lang,io){
                 r=r[0];
                 var Emitter,chunkChannel
                 if(!d.channel){
-                    Emitter = s.group[d.ke].mon[d.id].emitter
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[d.ke].mon[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
+                    Emitter = s.group[d.ke].activeMonitors[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
                     chunkChannel = parseInt(d.channel)+config.pipeAddition
                 }
                 if(!Emitter){
@@ -321,7 +300,7 @@ module.exports = function(s,config,lang,io){
                 cn.auth=d.auth;
                 cn.channel=d.channel;
                 cn.socketVideoStream=d.id;
-                var mp4frag = s.group[d.ke].mon[d.id].mp4frag[d.channel];
+                var mp4frag = s.group[d.ke].activeMonitors[d.id].mp4frag[d.channel];
                 var onInitialized = () => {
                     cn.emit('mime', mp4frag.mime);
                     mp4frag.removeListener('initialized', onInitialized);
@@ -438,13 +417,9 @@ module.exports = function(s,config,lang,io){
                     }
                     s.group[d.ke].users[d.auth].lang=s.getLanguageFile(s.group[d.ke].users[d.auth].details.lang)
                     s.userLog({ke:d.ke,mid:'$USER'},{type:s.group[d.ke].users[d.auth].lang['Websocket Connected'],msg:{mail:r.mail,id:d.uid,ip:cn.ip}})
-                    if(!s.group[d.ke].mon){
-                        s.group[d.ke].mon={}
-                        if(!s.group[d.ke].mon){s.group[d.ke].mon={}}
-                    }
-                    if(s.isAtleatOneDetectorPluginConnected){
-                        s.sendDetectorInfoToClient({f:'detector_plugged'},tx)
-                        s.ocvTx({f:'readPlugins',ke:d.ke})
+                    if(!s.group[d.ke].activeMonitors){
+                        s.group[d.ke].activeMonitors={}
+                        if(!s.group[d.ke].activeMonitors){s.group[d.ke].activeMonitors={}}
                     }
                     tx({f:'users_online',users:s.group[d.ke].users})
                     s.tx({f:'user_status_change',ke:d.ke,uid:cn.uid,status:1,user:s.group[d.ke].users[d.auth]},'GRP_'+d.ke)
@@ -465,7 +440,7 @@ module.exports = function(s,config,lang,io){
                             s.sqlQuery('SELECT * FROM Monitors WHERE ke=?', [d.ke], function(err,r) {
                                 if(r && r[0]){
                                     r.forEach(function(monitor){
-                                        s.cameraSendSnapshot({mid:monitor.mid,ke:monitor.ke,mon:monitor})
+                                        s.cameraSendSnapshot({mid:monitor.mid,ke:monitor.ke,mon:monitor},{useIcon: true})
                                     })
                                 }
                             })
@@ -474,7 +449,7 @@ module.exports = function(s,config,lang,io){
                         }
                     })
                     s.onSocketAuthenticationExtensions.forEach(function(extender){
-                        extender(r,cn)
+                        extender(r,cn,d,tx)
                     })
                 }
                 s.sqlQuery('SELECT ke,uid,auth,mail,details FROM Users WHERE ke=? AND auth=? AND uid=?',[d.ke,d.auth,d.uid],function(err,r) {
@@ -507,9 +482,6 @@ module.exports = function(s,config,lang,io){
             if((d.id||d.uid||d.mid)&&cn.ke){
                 try{
                 switch(d.f){
-                    case'ocv_in':
-                        s.ocvTx(d.data)
-                    break;
                     case'monitorOrder':
                         if(d.monitorOrder && d.monitorOrder instanceof Object){
                             s.sqlQuery('SELECT details FROM Users WHERE uid=? AND ke=?',[cn.uid,cn.ke],function(err,r){
@@ -744,9 +716,10 @@ module.exports = function(s,config,lang,io){
                                         getVideos(function(videos){
                                             getEvents(function(events){
                                                 tx({
-                                                    f:'drawPowerVideoMainTimeLine',
-                                                    videos:videos,
-                                                    events:events
+                                                    f: 'videos&events',
+                                                    id: d.mid,
+                                                    videos: videos,
+                                                    events: events
                                                 })
                                             })
                                         })
@@ -781,7 +754,7 @@ module.exports = function(s,config,lang,io){
                             case'watch_on':
                                 if(!d.ke){d.ke=cn.ke}
                                 s.initiateMonitorObject({mid:d.id,ke:d.ke});
-                                if(!s.group[d.ke]||!s.group[d.ke].mon[d.id]||s.group[d.ke].mon[d.id].isStarted === false){return false}
+                                if(!s.group[d.ke]||!s.group[d.ke].activeMonitors[d.id]||s.group[d.ke].activeMonitors[d.id].isStarted === false){return false}
                                 cn.join('MON_'+d.ke+d.id);
                                 cn.join('DETECTOR_'+d.ke+d.id);
                                 if(cn.jpeg_on !== true){
@@ -951,6 +924,7 @@ module.exports = function(s,config,lang,io){
                     var tempSessionKey = s.gid(30)
                     cn.superSessionKey = tempSessionKey
                     s.superUsersApi[tempSessionKey] = data
+                    s.superUsersApi[tempSessionKey].cnid = cn.id
                     if(!data.$user.tokens)data.$user.tokens = {}
                     data.$user.tokens[tempSessionKey] = {}
                     cn.ip=cn.request.connection.remoteAddress
@@ -1229,15 +1203,15 @@ module.exports = function(s,config,lang,io){
                             login_type:'Streamer'
                         }
                         s.group[d.ke].dashcamUsers[d.auth] = s.group[d.ke].users[d.auth]
-                        if(s.group[d.ke].mon){
-                            Object.keys(s.group[d.ke].mon).forEach(function(monitorId){
+                        if(s.group[d.ke].activeMonitors){
+                            Object.keys(s.group[d.ke].activeMonitors).forEach(function(monitorId){
                                 var dataToClient = {
                                     f : 'disable_stream',
                                     mid : monitorId,
                                     ke : d.ke
                                 }
-                                var mon = s.group[d.ke].mon[monitorId]
-                                if(s.group[d.ke].mon_conf[monitorId].type === 'dashcam'){
+                                var mon = s.group[d.ke].activeMonitors[monitorId]
+                                if(s.group[d.ke].rawMonitorConfigurations[monitorId].type === 'dashcam'){
                                     if(mon.allowStdinWrite === true){
                                         dataToClient.f = 'enable_stream'
                                     }
@@ -1248,22 +1222,22 @@ module.exports = function(s,config,lang,io){
                     }
                 })
             }else{
-                if(s.group[d.ke] && s.group[d.ke].mon[d.mid]){
-                    if(s.group[d.ke].mon[d.mid].allowStdinWrite === true){
+                if(s.group[d.ke] && s.group[d.ke].activeMonitors[d.mid]){
+                    if(s.group[d.ke].activeMonitors[d.mid].allowStdinWrite === true){
                         switch(d.f){
                             case'monitor_chunk':
-                                if(s.group[d.ke].mon[d.mid].isStarted !== true || !s.group[d.ke].mon[d.mid].spawn || !s.group[d.ke].mon[d.mid].spawn.stdin){
+                                if(s.group[d.ke].activeMonitors[d.mid].isStarted !== true || !s.group[d.ke].activeMonitors[d.mid].spawn || !s.group[d.ke].activeMonitors[d.mid].spawn.stdin){
                                     s.tx({error:'Not Started'},cn.id);
                                     return false
                                 };
-                                s.group[d.ke].mon[d.mid].spawn.stdin.write(new Buffer(d.chunk, "binary"));
+                                s.group[d.ke].activeMonitors[d.mid].spawn.stdin.write(new Buffer(d.chunk, "binary"));
                             break;
                             case'monitor_frame':
-                                if(s.group[d.ke].mon[d.mid].isStarted !== true){
+                                if(s.group[d.ke].activeMonitors[d.mid].isStarted !== true){
                                     s.tx({error:'Not Started'},cn.id);
                                     return false
                                 };
-                                s.group[d.ke].mon[d.mid].spawn.stdin.write(d.frame);
+                                s.group[d.ke].activeMonitors[d.mid].spawn.stdin.write(d.frame);
                             break;
                         }
                     }else{
@@ -1279,7 +1253,7 @@ module.exports = function(s,config,lang,io){
             tx=function(z){if(!z.ke){z.ke=cn.ke;};cn.emit('f',z);}
             switch(d.f){
                 case'init':
-                        if(!s.group[d.ke]||!s.group[d.ke].mon[d.id]||s.group[d.ke].mon[d.id].isStarted === false){return false}
+                        if(!s.group[d.ke]||!s.group[d.ke].activeMonitors[d.id]||s.group[d.ke].activeMonitors[d.id].isStarted === false){return false}
                     s.auth({auth:d.auth,ke:d.ke,id:d.id,ip:cn.request.connection.remoteAddress},function(user){
                         cn.embedded=1;
                         cn.ke=d.ke;
@@ -1294,10 +1268,10 @@ module.exports = function(s,config,lang,io){
                         cn.join('MON_STREAM_'+d.ke+d.id);
                         cn.join('DETECTOR_'+d.ke+d.id);
                         cn.join('STR_'+d.ke);
-                        if(s.group[d.ke]&&s.group[d.ke].mon[d.id]&&s.group[d.ke].mon[d.id].watch){
+                        if(s.group[d.ke]&&s.group[d.ke].activeMonitors[d.id]&&s.group[d.ke].activeMonitors[d.id].watch){
 
                             tx({f:'monitor_watch_on',id:d.id,ke:d.ke},'MON_'+d.ke+d.id)
-                            s.tx({viewers:Object.keys(s.group[d.ke].mon[d.id].watch).length,ke:d.ke,id:d.id},'MON_'+d.ke+d.id)
+                            s.tx({viewers:Object.keys(s.group[d.ke].activeMonitors[d.id].watch).length,ke:d.ke,id:d.id},'MON_'+d.ke+d.id)
                        }
                     });
                 break;
@@ -1364,19 +1338,8 @@ module.exports = function(s,config,lang,io){
                     if(s.group[cn.ke].dashcamUsers && s.group[cn.ke].dashcamUsers[cn.auth])delete(s.group[cn.ke].dashcamUsers[cn.auth]);
                 }
             }
-            if(cn.pluginEngine){
-                s.connectedPlugins[cn.pluginEngine].plugged = false
-                s.tx({f:'plugin_engine_unplugged',plug:cn.pluginEngine},'CPU')
-            }
             if(cn.cron){
                 delete(s.cron);
-            }
-            if(cn.detectorPlugin){
-                s.tx({f:'detector_unplugged',plug:cn.detectorPlugin},'CPU')
-                s.removeDetectorPlugin(cn.detectorPlugin)
-                s.sendDetectorInfoToClient({f:'detector_plugged'},function(data){
-                    s.tx(data,'CPU')
-                })
             }
             if(cn.superSessionKey){
                 delete(s.superUsersApi[cn.superSessionKey])

@@ -75,7 +75,7 @@ $(document).ready(function(e){
         $.logWriter.floodTimeout = setTimeout(function(){
             delete($.logWriter.floodTimeout)
             $.logWriter.floodCounter = 0
-        },1000)
+        },2000)
         $.ccio.tm(4,d,'#logs,'+id+'.monitor_item .logs:visible,'+id+'#add_monitor:visible .logs',user)
     }
     //open all monitors
@@ -320,6 +320,32 @@ $(document).ready(function(e){
                 user=$user
             }
         switch(e.a){
+            case'zoomStreamWithMouse':
+                var streamWindow = $('.monitor_item[mid="'+e.mid+'"][ke="'+e.ke+'"][auth="'+e.auth+'"]')
+                if(e.mon.magnifyStreamEnabled){
+                    e.mon.magnifyStreamEnabled = false
+                    streamWindow
+                        .off('mousemove')
+                        .off('touchmove')
+                        .find('.zoomGlass').remove()
+                }else{
+                    e.mon.magnifyStreamEnabled = true
+                    const magnifyStream = function(e){
+                        $.ccio.magnifyStream({
+                            p: streamWindow,
+                            zoomAmount: 1,
+                            auto: false,
+                            animate: false,
+                            pageX: e.pageX,
+                            pageY:  e.pageY,
+                            attribute: 'monitor="zoomStreamWithMouse"'
+                        },user)
+                    }
+                    streamWindow
+                        .on('mousemove', magnifyStream)
+                        .on('touchmove', magnifyStream)
+                }
+            break;
             case'show_data':
                 e.p.toggleClass('show_data')
                 var dataBlocks = e.p.find('.stream-block,.mdl-data_window')
@@ -365,31 +391,17 @@ $(document).ready(function(e){
                     })
                 }
             break;
-            case'timelapse':
-                $.timelapse.e.modal('show')
-                $.timelapse.monitors.find('.monitor').remove()
+            case'timelapseJpeg':
+                $.timelapseJpeg.e.modal('show')
+                $.timelapseJpeg.monitors.find('.monitor').remove()
                 $.each($.ccio.mon,function(n,v){
-                    $.timelapse.monitors.append('<option class="monitor" value="'+v.mid+'">'+v.name+'</option>')
+                    $.timelapseJpeg.monitors.append('<option class="monitor" value="'+v.mid+'">'+v.name+'</option>')
                 })
-                e.e=$.timelapse.monitors.find('.monitor').prop('selected',false)
+                e.e=$.timelapseJpeg.monitors.find('.monitor').prop('selected',false)
                 if(e.mid!==''){
-                    e.e=$.timelapse.monitors.find('.monitor[value="'+e.mid+'"]')
+                    e.e=$.timelapseJpeg.monitors.find('.monitor[value="'+e.mid+'"]')
                 }
                 e.e.first().prop('selected',true)
-                $.timelapse.f.submit()
-            break;
-            case'powerview':
-                $.pwrvid.e.modal('show')
-                $.pwrvid.m.empty()
-                $.each($.ccio.mon,function(n,v){
-                    $.pwrvid.m.append('<option value="'+v.mid+'">'+v.name+'</option>')
-                })
-                e.e=$.pwrvid.m.find('option').prop('selected',false)
-                if(e.mid!==''){
-                    e.e=$.pwrvid.m.find('[value="'+e.mid+'"]')
-                }
-                e.e.first().prop('selected',true)
-                $.pwrvid.f.submit()
             break;
             case'region':
                 if(!e.mon){
@@ -508,6 +520,7 @@ $(document).ready(function(e){
                                         right: 'month,agendaWeek,agendaDay,listWeek'
                                     },
                                     defaultDate: $.ccio.timeObject(d.videos[0].time).format('YYYY-MM-DD'),
+                                    locale: user.details.lang.substring(0, 2),
                                     navLinks: true,
                                     eventLimit: true,
                                     events:e.ar,
@@ -562,21 +575,21 @@ $(document).ready(function(e){
                             var showThumbnail = $.ccio.op().showThumbnail === '1'
                             $.vidview.e.removeClass('dark')
                             e.t.attr('class','fa fa-film')
-                            var tmp = '<table class="table table-striped" style="max-height:500px">';
+                            var tmp = '<table class="table table-striped table-bordered">';
                             tmp+='<thead>';
                             tmp+='<tr>';
                             tmp+='<th><div class="checkbox"><input id="videos_select_all" type="checkbox"><label for="videos_select_all"></label></div></th>';
-                            if(showThumbnail)tmp+='<th data-field="Thumbnail" data-sortable="true">'+lang.Thumbnail+'</th>';
-                            tmp+='<th data-field="Closed" data-sortable="true">'+lang.Closed+'</th>';
-                            tmp+='<th data-field="Ended" data-sortable="true">'+lang.Ended+'</th>';
-                            tmp+='<th data-field="Started" data-sortable="true">'+lang.Started+'</th>';
-                            tmp+='<th data-field="Monitor" data-sortable="true">'+lang.Monitor+'</th>';
-                            tmp+='<th data-field="Filename" data-sortable="true">'+lang.Filename+'</th>';
-                            tmp+='<th data-field="Size" data-sortable="true">'+lang['Size (mb)']+'</th>';
-                            tmp+='<th data-field="Preview" data-sortable="true">'+lang.Preview+'</th>';
-                            tmp+='<th data-field="Watch" data-sortable="true">'+lang.Watch+'</th>';
-                            tmp+='<th data-field="Download" data-sortable="true">'+lang.Download+'</th>';
-                            tmp+='<th class="permission_video_delete" data-field="Delete" data-sortable="true">'+lang.Delete+'</th>';
+                            if(showThumbnail)tmp+='<th>'+lang.Thumbnail+'</th>';
+                            tmp+='<th class="table-header-sorter" data-field="Closed">'+lang.Closed+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th class="table-header-sorter" data-field="Ended">'+lang.Ended+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th class="table-header-sorter" data-field="Started">'+lang.Started+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th class="table-header-sorter" data-field="Monitor">'+lang.Monitor+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th class="table-header-sorter" data-field="Filename">'+lang.Filename+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th class="table-header-sorter" data-field="Size">'+lang['Size (mb)']+'<i class="fa fa-sort"></i></th>';
+                            tmp+='<th>'+lang.Preview+'</th>';
+                            tmp+='<th>'+lang.Watch+'</th>';
+                            tmp+='<th>'+lang.Download+'</th>';
+                            tmp+='<th class="permission_video_delete">'+lang.Delete+'</th>';
     //                        tmp+='<th class="permission_video_delete" data-field="Fix" data-sortable="true">'+lang.Fix+'</th>';
                             tmp+='</tr>';
                             tmp+='</thead>';
@@ -588,10 +601,19 @@ $(document).ready(function(e){
                                     v.mon=$.ccio.mon[v.ke+v.mid+user.auth_token];
                                     v.start=v.time;
     //                                v.filename=$.ccio.init('tf',v.time)+'.'+v.ext;
-                                    tmp+='<tr data-ke="'+v.ke+'" data-status="'+v.status+'" data-mid="'+v.mid+'" data-file="'+v.filename+'" data-auth="'+v.mon.user.auth_token+'">';
+                                    const sortData = {
+                                        _no: n,
+                                        Closed: $.ccio.timeObject(v.end).unix(),
+                                        Ended: $.ccio.timeObject(v.end).unix(),
+                                        Started: $.ccio.timeObject(v.time).unix(),
+                                        Monitor: v.mon.name,
+                                        Filename: v.filename,
+                                        Size: v.size,
+                                    };
+                                    tmp+='<tr data-sort="' + JSON.stringify(sortData).replace(/"/g, "&#34;") + '" data-ke="'+v.ke+'" data-status="'+v.status+'" data-mid="'+v.mid+'" data-file="'+v.filename+'" data-auth="'+v.mon.user.auth_token+'">';
                                     tmp+='<td><div class="checkbox"><input id="'+v.ke+'_'+v.filename+'" name="'+v.filename+'" value="'+v.mid+'" type="checkbox"><label for="'+v.ke+'_'+v.filename+'"></label></div></td>';
                                     if(showThumbnail)tmp+='<td class="text-center"><img class="thumbnail"></td>';
-                                    tmp+='<td><span class="livestamp" title="'+$.ccio.timeObject(v.end).format('YYYY-MM-DD HH:mm:ss')+'"></span></td>';
+                                    tmp+='<td>'+$.ccio.timeObject(v.end).fromNow()+'</td>';
                                     tmp+='<td title="'+v.end+'">'+$.ccio.timeObject(v.end).format('h:mm:ss A, MMMM Do YYYY')+'</td>';
                                     tmp+='<td title="'+v.time+'">'+$.ccio.timeObject(v.time).format('h:mm:ss A, MMMM Do YYYY')+'</td>';
                                     tmp+='<td>'+v.mon.name+'</td>';
@@ -608,6 +630,10 @@ $(document).ready(function(e){
                             tmp+='</tbody>';
                             tmp+='</table>';
                             e.b.html(tmp)
+                            e.b.css({
+                                overflow: 'auto',
+                                height: '100%',
+                            }).scrollTop(0);
                             if(showThumbnail){
                                 var i = 0
                                 var getThumbnail = function(){
@@ -624,8 +650,6 @@ $(document).ready(function(e){
                                 }
                                 getThumbnail()
                             }
-                            $.ccio.init('ls');
-                            $.vidview.e.find('table').bootstrapTable();
                         break;
                     }
                 })
@@ -796,6 +820,4 @@ $(document).ready(function(e){
     .on('dblclick','.stream-hud',function(){
         $(this).parents('[mid]').find('[monitor="fullscreen"]').click();
     })
-    //.on('mousemove',".magnifyStream",$.ccio.magnifyStream)
-    //.on('touchmove',".magnifyStream",$.ccio.magnifyStream);
 })

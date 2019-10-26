@@ -11,15 +11,16 @@ var httpProxy = require('http-proxy');
 var onvif = require('node-onvif');
 var proxy = httpProxy.createProxyServer({})
 var ejs = require('ejs');
-var CircularJSON = require('circular-json');
 module.exports = function(s,config,lang,app,io){
     if(config.productType==='Pro'){
         var LdapAuth = require('ldapauth-fork');
     }
     s.renderPage = function(req,res,paths,passables,callback){
         passables.window = {}
+        passables.data = req.params
         passables.originalURL = s.getOriginalUrl(req)
-        passables.config = config
+        passables.baseUrl = req.protocol+'://'+req.hostname
+        passables.config = s.getConfigWithBranding(req.hostname)
         res.render(paths,passables,callback)
     }
     //child node proxy check
@@ -28,8 +29,8 @@ module.exports = function(s,config,lang,app,io){
     //res = response, only needed for express (http server)
     //request = request, only needed for express (http server)
     s.checkChildProxy = function(params,cb,res,req){
-        if(s.group[params.ke] && s.group[params.ke].mon[params.id] && s.group[params.ke].mon[params.id].childNode){
-            var url = 'http://' + s.group[params.ke].mon[params.id].childNode// + req.originalUrl
+        if(s.group[params.ke] && s.group[params.ke].activeMonitors[params.id] && s.group[params.ke].activeMonitors[params.id].childNode){
+            var url = 'http://' + s.group[params.ke].activeMonitors[params.id].childNode// + req.originalUrl
             proxy.web(req, res, { target: url })
         }else{
             cb()
@@ -94,34 +95,22 @@ module.exports = function(s,config,lang,app,io){
     * Page : Login Screen
     */
     app.get(config.webPaths.home, function (req,res){
-        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'dashboard'},function(err,html){
-            if(err){
-                s.systemLog(err)
-            }
-            res.end(html)
-        })
+        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config: s.getConfigWithBranding(req.hostname),screen:'dashboard'})
     });
     /**
     * Page : Administrator Login Screen
     */
     app.get(config.webPaths.admin, function (req,res){
-        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'admin'},function(err,html){
-            if(err){
-                s.systemLog(err)
-            }
-            res.end(html)
-        })
+        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config: s.getConfigWithBranding(req.hostname),screen:'admin'})
     });
     /**
     * Page : Superuser Login Screen
     */
     app.get(config.webPaths.super, function (req,res){
-
-        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'super'},function(err,html){
-            if(err){
-                s.systemLog(err)
-            }
-            res.end(html)
+        s.renderPage(req,res,config.renderPaths.index,{
+            lang: lang,
+            config: s.getConfigWithBranding(req.hostname),
+            screen: 'super'
         })
     });
     /**
@@ -183,13 +172,8 @@ module.exports = function(s,config,lang,app,io){
                     failedLogin: true,
                     message: lang.failedLoginText1,
                     lang: s.copySystemDefaultLanguage(),
-                    config: config,
+                    config: s.getConfigWithBranding(req.hostname),
                     screen: screenChooser(req.params.screen)
-                },function(err,html){
-                    if(err){
-                        s.systemLog(err)
-                    }
-                    res.end(html)
                 })
             }
             return false
@@ -207,12 +191,7 @@ module.exports = function(s,config,lang,app,io){
                 res.end(s.prettyPrint(data))
             }else{
                 data.screen=req.params.screen
-                s.renderPage(req,res,focus,data,function(err,html){
-                    if(err){
-                        s.systemLog(err)
-                    }
-                    res.end(html)
-                })
+                s.renderPage(req,res,focus,data)
             }
         }
         failedAuthentication = function(board){
@@ -241,13 +220,8 @@ module.exports = function(s,config,lang,app,io){
                     failedLogin: true,
                     message: lang.failedLoginText2,
                     lang: s.copySystemDefaultLanguage(),
-                    config: config,
+                    config: s.getConfigWithBranding(req.hostname),
                     screen: screenChooser(req.params.screen)
-                },function(err,html){
-                    if(err){
-                        s.systemLog(err)
-                    }
-                    res.end(html)
                 })
             }
             var logTo = {
@@ -284,7 +258,7 @@ module.exports = function(s,config,lang,app,io){
                     s.sqlQuery('SELECT * FROM Monitors WHERE ke=? AND type=?',[r.ke,"dashcam"],function(err,rr){
                         req.resp.mons=rr;
                         renderPage(config.renderPaths.dashcam,{
-                            // config: config,
+                            // config: s.getConfigWithBranding(req.hostname),
                             $user: req.resp,
                             lang: r.lang,
                             define: s.getDefinitonFile(r.details.lang),
@@ -296,7 +270,7 @@ module.exports = function(s,config,lang,app,io){
                     s.sqlQuery('SELECT * FROM Monitors WHERE ke=? AND type=?',[r.ke,"socket"],function(err,rr){
                         req.resp.mons=rr;
                         renderPage(config.renderPaths.streamer,{
-                            // config: config,
+                            // config: s.getConfigWithBranding(req.hostname),
                             $user: req.resp,
                             lang: r.lang,
                             define: s.getDefinitonFile(r.details.lang),
@@ -309,7 +283,7 @@ module.exports = function(s,config,lang,app,io){
                         s.sqlQuery('SELECT uid,mail,details FROM Users WHERE ke=? AND details LIKE \'%"sub"%\'',[r.ke],function(err,rr) {
                             s.sqlQuery('SELECT * FROM Monitors WHERE ke=?',[r.ke],function(err,rrr) {
                                 renderPage(config.renderPaths.admin,{
-                                    config: config,
+                                    config: s.getConfigWithBranding(req.hostname),
                                     $user: req.resp,
                                     $subs: rr,
                                     $mons: rrr,
@@ -321,9 +295,13 @@ module.exports = function(s,config,lang,app,io){
                         })
                     }else{
                         //not admin user
-                        renderPage(config.renderPaths.home,{
+                        var chosenRender = 'home'
+                        if(r.details.landing_page && r.details.landing_page !== '' && config.renderPaths[r.details.landing_page]){
+                            chosenRender = r.details.landing_page
+                        }
+                        renderPage(config.renderPaths[chosenRender],{
                             $user:req.resp,
-                            config:config,
+                            config: s.getConfigWithBranding(req.hostname),
                             lang:r.lang,
                             define:s.getDefinitonFile(r.details.lang),
                             addStorage:s.dir.addStorage,
@@ -334,16 +312,20 @@ module.exports = function(s,config,lang,app,io){
                     }
                 break;
                 default:
-                    renderPage(config.renderPaths.home,{
+                    var chosenRender = 'home'
+                    if(r.details.sub && r.details.landing_page && r.details.landing_page !== '' && config.renderPaths[r.details.landing_page]){
+                        chosenRender = r.details.landing_page
+                    }
+                    renderPage(config.renderPaths[chosenRender],{
                         $user:req.resp,
-                        config:config,
+                        config: s.getConfigWithBranding(req.hostname),
                         lang:r.lang,
                         define:s.getDefinitonFile(r.details.lang),
                         addStorage:s.dir.addStorage,
                         fs:fs,
                         __dirname:s.mainDirectory,
                         customAutoLoad: s.customAutoLoadTree
-                    });
+                    })
                 break;
             }
             s.userLog({ke:r.ke,mid:'$USER'},{type:r.lang['New Authentication Token'],msg:{for:req.body.function,mail:r.mail,id:r.uid,ip:req.ip}})
@@ -360,6 +342,8 @@ module.exports = function(s,config,lang,app,io){
                         r.details=JSON.parse(r.details);
                         r.lang=s.getLanguageFile(r.details.lang)
                         req.factorAuth=function(cb){
+                            req.params.auth = r.auth
+                            req.params.ke = r.ke
                             if(r.details.factorAuth === "1"){
                                 if(!r.details.acceptedMachines||!(r.details.acceptedMachines instanceof Object)){
                                     r.details.acceptedMachines={}
@@ -494,8 +478,8 @@ module.exports = function(s,config,lang,app,io){
                                             req.resp.lang=r.lang
                                             s.sqlQuery('INSERT INTO Users (ke,uid,auth,mail,pass,details) VALUES (?,?,?,?,?,?)',user.post)
                                         }
-                                        req.resp.details=JSON.stringify(req.resp.details)
-                                        req.resp.auth_token=req.resp.auth
+                                        req.resp.details = JSON.stringify(req.resp.details)
+                                        req.resp.auth_token = req.resp.auth
                                         req.resp.ok=true
                                         checkRoute(req.resp)
                                     })
@@ -534,6 +518,7 @@ module.exports = function(s,config,lang,app,io){
                             }
                             data.Logs = r
                             data.customAutoLoad = s.customAutoLoadTree
+                            data.currentVersion = s.currentVersion
                             fs.readFile(s.location.config,'utf8',function(err,file){
                                 data.plainConfig = JSON.parse(file)
                                 renderPage(config.renderPaths.super,data)
@@ -644,8 +629,8 @@ module.exports = function(s,config,lang,app,io){
                     r = filteredByGroup;
                 }
                 r.forEach(function(v,n){
-                    if(s.group[v.ke]&&s.group[v.ke].mon[v.mid]&&s.group[v.ke].mon[v.mid].watch){
-                        r[n].currentlyWatching=Object.keys(s.group[v.ke].mon[v.mid].watch).length
+                    if(s.group[v.ke]&&s.group[v.ke].activeMonitors[v.mid]&&s.group[v.ke].activeMonitors[v.mid].watch){
+                        r[n].currentlyWatching=Object.keys(s.group[v.ke].activeMonitors[v.mid].watch).length
                     }
                     r[n].subStream={}
                     var details = JSON.parse(r[n].details)
@@ -689,7 +674,7 @@ module.exports = function(s,config,lang,app,io){
                 s.renderPage(req,res,page,{
                     data:Object.assign(req.params,req.query),
                     baseUrl:req.protocol+'://'+req.hostname,
-                    config:config,
+                    config: s.getConfigWithBranding(req.hostname),
                     lang:user.lang,
                     $user:user,
                     monitors:r,
@@ -866,10 +851,10 @@ module.exports = function(s,config,lang,app,io){
             }
             s.sqlQuery(req.sql,req.ar,function(err,r){
                 r.forEach(function(v,n){
-                    if(s.group[v.ke] && s.group[v.ke].mon[v.mid]){
-                        r[n].currentlyWatching = Object.keys(s.group[v.ke].mon[v.mid].watch).length
-                        r[n].currentCpuUsage = s.group[v.ke].mon[v.mid].currentCpuUsage
-                        r[n].status = s.group[v.ke].mon[v.mid].monitorStatus
+                    if(s.group[v.ke] && s.group[v.ke].activeMonitors[v.mid]){
+                        r[n].currentlyWatching = Object.keys(s.group[v.ke].activeMonitors[v.mid].watch).length
+                        r[n].currentCpuUsage = s.group[v.ke].activeMonitors[v.mid].currentCpuUsage
+                        r[n].status = s.group[v.ke].activeMonitors[v.mid].monitorStatus
                     }
                     var buildStreamURL = function(type,channelNumber){
                         var streamURL
@@ -909,7 +894,7 @@ module.exports = function(s,config,lang,app,io){
                     r[n].streamsSortedByType={}
                     buildStreamURL(details.stream_type)
                     if(details.stream_channels&&details.stream_channels!==''){
-                        details.stream_channels=JSON.parse(details.stream_channels)
+                        details.stream_channels=s.parseJSON(details.stream_channels)
                         details.stream_channels.forEach(function(b,m){
                             buildStreamURL(b.stream_type,m.toString())
                         })
@@ -1096,7 +1081,10 @@ module.exports = function(s,config,lang,app,io){
     /**
     * API : Get Events
      */
-    app.get([config.webPaths.apiPrefix+':auth/events/:ke',config.webPaths.apiPrefix+':auth/events/:ke/:id',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit/:start',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit/:start/:end'], function (req,res){
+    app.get([
+		config.webPaths.apiPrefix+':auth/events/:ke',
+		config.webPaths.apiPrefix+':auth/events/:ke/:id'
+	], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
         s.auth(req.params,function(user){
@@ -1122,20 +1110,42 @@ module.exports = function(s,config,lang,app,io){
                     return;
                 }
             }
-            if(req.params.start&&req.params.start!==''){
-                req.params.start = s.stringToSqlTime(req.params.start)
-                if(req.params.end&&req.params.end!==''){
-                    req.params.end = s.stringToSqlTime(req.params.end)
-                    req.sql+=' AND `time` >= ? AND `time` <= ?';
-                    req.ar.push(decodeURIComponent(req.params.start))
-                    req.ar.push(decodeURIComponent(req.params.end))
-                }else{
-                    req.sql+=' AND `time` >= ?';
-                    req.ar.push(decodeURIComponent(req.params.start))
+            if(req.query.start||req.query.end){
+                if(req.query.start && req.query.start !== ''){
+                    req.query.start = s.stringToSqlTime(req.query.start)
+                }
+                if(req.query.end && req.query.end !== ''){
+                    req.query.end = s.stringToSqlTime(req.query.end)
+                }
+                if(!req.query.startOperator||req.query.startOperator==''){
+                    req.query.startOperator='>='
+                }
+                if(!req.query.endOperator||req.query.endOperator==''){
+                    req.query.endOperator='<='
+                }
+                switch(true){
+                    case(req.query.start&&req.query.start!==''&&req.query.end&&req.query.end!==''):
+                        req.sql+=' AND `time` '+req.query.startOperator+' ? AND `time` '+req.query.endOperator+' ?';
+                        req.ar.push(req.query.start)
+                        req.ar.push(req.query.end)
+                    break;
+                    case(req.query.start&&req.query.start!==''):
+                        req.sql+=' AND `time` '+req.query.startOperator+' ?';
+                        req.ar.push(req.query.start)
+                    break;
+                    case(req.query.end&&req.query.end!==''):
+                        req.sql+=' AND `time` '+req.query.endOperator+' ?';
+                        req.ar.push(req.query.end)
+                    break;
                 }
             }
-            if(!req.params.limit||req.params.limit==''){req.params.limit=100}
-            req.sql+=' ORDER BY `time` DESC LIMIT '+req.params.limit+'';
+            req.sql+=' ORDER BY `time` DESC';
+            if(!req.query.limit||req.query.limit==''){
+                req.query.limit='100'
+            }
+            if(req.query.limit!=='0'){
+                req.sql+=' LIMIT '+req.query.limit
+            }
             s.sqlQuery(req.sql,req.ar,function(err,r){
                 if(err){
                     err.sql=req.sql;
@@ -1238,7 +1248,7 @@ module.exports = function(s,config,lang,app,io){
                 if(r&&r[0]){
                     req.ar=[];
                     r.forEach(function(v){
-                        if(s.group[req.params.ke]&&s.group[req.params.ke].mon[v.mid]&&s.group[req.params.ke].mon[v.mid].isStarted === true){
+                        if(s.group[req.params.ke]&&s.group[req.params.ke].activeMonitors[v.mid]&&s.group[req.params.ke].activeMonitors[v.mid].isStarted === true){
                             req.ar.push(v)
                         }
                     })
@@ -1270,25 +1280,25 @@ module.exports = function(s,config,lang,app,io){
             s.sqlQuery('SELECT * FROM Monitors WHERE ke=? AND mid=?',[req.params.ke,req.params.id],function(err,r){
                 if(r&&r[0]){
                     r=r[0];
-                    if(req.query.reset==='1'||(s.group[r.ke]&&s.group[r.ke].mon_conf[r.mid].mode!==req.params.f)||req.query.fps&&(!s.group[r.ke].mon[r.mid].currentState||!s.group[r.ke].mon[r.mid].currentState.trigger_on)){
-                        if(req.query.reset!=='1'||!s.group[r.ke].mon[r.mid].trigger_timer){
-                            if(!s.group[r.ke].mon[r.mid].currentState)s.group[r.ke].mon[r.mid].currentState={}
-                            s.group[r.ke].mon[r.mid].currentState.mode=r.mode.toString()
-                            s.group[r.ke].mon[r.mid].currentState.fps=r.fps.toString()
-                            if(!s.group[r.ke].mon[r.mid].currentState.trigger_on){
-                               s.group[r.ke].mon[r.mid].currentState.trigger_on=true
+                    if(req.query.reset==='1'||(s.group[r.ke]&&s.group[r.ke].rawMonitorConfigurations[r.mid].mode!==req.params.f)||req.query.fps&&(!s.group[r.ke].activeMonitors[r.mid].currentState||!s.group[r.ke].activeMonitors[r.mid].currentState.trigger_on)){
+                        if(req.query.reset!=='1'||!s.group[r.ke].activeMonitors[r.mid].trigger_timer){
+                            if(!s.group[r.ke].activeMonitors[r.mid].currentState)s.group[r.ke].activeMonitors[r.mid].currentState={}
+                            s.group[r.ke].activeMonitors[r.mid].currentState.mode=r.mode.toString()
+                            s.group[r.ke].activeMonitors[r.mid].currentState.fps=r.fps.toString()
+                            if(!s.group[r.ke].activeMonitors[r.mid].currentState.trigger_on){
+                               s.group[r.ke].activeMonitors[r.mid].currentState.trigger_on=true
                             }else{
-                                s.group[r.ke].mon[r.mid].currentState.trigger_on=false
+                                s.group[r.ke].activeMonitors[r.mid].currentState.trigger_on=false
                             }
                             r.mode=req.params.f;
                             try{r.details=JSON.parse(r.details);}catch(er){}
                             if(req.query.fps){
                                 r.fps=parseFloat(r.details.detector_trigger_record_fps)
-                                s.group[r.ke].mon[r.mid].currentState.detector_trigger_record_fps=r.fps
+                                s.group[r.ke].activeMonitors[r.mid].currentState.detector_trigger_record_fps=r.fps
                             }
                             r.id=r.mid;
                             s.sqlQuery('UPDATE Monitors SET mode=? WHERE ke=? AND mid=?',[r.mode,r.ke,r.mid]);
-                            s.group[r.ke].mon_conf[r.mid]=r;
+                            s.group[r.ke].rawMonitorConfigurations[r.mid]=r;
                             s.tx({f:'monitor_edit',mid:r.mid,ke:r.ke,mon:r},'GRP_'+r.ke);
                             s.tx({f:'monitor_edit',mid:r.mid,ke:r.ke,mon:r},'STR_'+r.ke);
                             s.camera('stop',s.cleanMonitorObject(r));
@@ -1303,7 +1313,7 @@ module.exports = function(s,config,lang,app,io){
                         req.ret.ok=true;
                         if(req.params.ff&&req.params.f!=='stop'){
                             req.params.ff=parseFloat(req.params.ff);
-                            clearTimeout(s.group[r.ke].mon[r.mid].trigger_timer)
+                            clearTimeout(s.group[r.ke].activeMonitors[r.mid].trigger_timer)
                             switch(req.params.fff){
                                 case'day':case'days':
                                     req.timeout=req.params.ff*1000*60*60*24
@@ -1318,17 +1328,17 @@ module.exports = function(s,config,lang,app,io){
                                     req.timeout=req.params.ff*1000
                                 break;
                             }
-                            s.group[r.ke].mon[r.mid].trigger_timer=setTimeout(function(){
-                                delete(s.group[r.ke].mon[r.mid].trigger_timer)
-                                s.sqlQuery('UPDATE Monitors SET mode=? WHERE ke=? AND mid=?',[s.group[r.ke].mon[r.mid].currentState.mode,r.ke,r.mid]);
+                            s.group[r.ke].activeMonitors[r.mid].trigger_timer=setTimeout(function(){
+                                delete(s.group[r.ke].activeMonitors[r.mid].trigger_timer)
+                                s.sqlQuery('UPDATE Monitors SET mode=? WHERE ke=? AND mid=?',[s.group[r.ke].activeMonitors[r.mid].currentState.mode,r.ke,r.mid]);
                                 r.neglectTriggerTimer=1;
-                                r.mode=s.group[r.ke].mon[r.mid].currentState.mode;
-                                r.fps=s.group[r.ke].mon[r.mid].currentState.fps;
+                                r.mode=s.group[r.ke].activeMonitors[r.mid].currentState.mode;
+                                r.fps=s.group[r.ke].activeMonitors[r.mid].currentState.fps;
                                 s.camera('stop',s.cleanMonitorObject(r),function(){
-                                    if(s.group[r.ke].mon[r.mid].currentState.mode!=='stop'){
-                                        s.camera(s.group[r.ke].mon[r.mid].currentState.mode,s.cleanMonitorObject(r));
+                                    if(s.group[r.ke].activeMonitors[r.mid].currentState.mode!=='stop'){
+                                        s.camera(s.group[r.ke].activeMonitors[r.mid].currentState.mode,s.cleanMonitorObject(r));
                                     }
-                                    s.group[r.ke].mon_conf[r.mid]=r;
+                                    s.group[r.ke].rawMonitorConfigurations[r.mid]=r;
                                 });
                                 s.tx({f:'monitor_edit',mid:r.mid,ke:r.ke,mon:r},'GRP_'+r.ke);
                                 s.tx({f:'monitor_edit',mid:r.mid,ke:r.ke,mon:r},'STR_'+r.ke);
@@ -1382,31 +1392,32 @@ module.exports = function(s,config,lang,app,io){
     * API : Get fileBin file
      */
     app.get(config.webPaths.apiPrefix+':auth/fileBin/:ke/:id/:year/:month/:day/:file', function (req,res){
-        req.fn=function(user){
-            req.failed=function(){
+        s.auth(req.params,function(user){
+            var failed = function(){
                 res.end(user.lang['File Not Found'])
             }
             if (!s.group[req.params.ke].fileBin[req.params.id+'/'+req.params.file]){
                 s.sqlQuery('SELECT * FROM Files WHERE ke=? AND mid=? AND name=?',[req.params.ke,req.params.id,req.params.file],function(err,r){
                     if(r&&r[0]){
-                        r=r[0]
-                        r.details=JSON.parse(r.details)
-                        req.dir=s.dir.fileBin+req.params.ke+'/'+req.params.id+'/'+r.details.year+'/'+r.details.month+'/'+r.details.day+'/'+req.params.file;
-                        if(fs.existsSync(req.dir)){
-                            res.on('finish',function(){res.end();});
-                            fs.createReadStream(req.dir).pipe(res);
-                        }else{
-                            req.failed()
-                        }
+                        r = r[0]
+                        r.details = JSON.parse(r.details)
+                        req.dir = s.dir.fileBin+req.params.ke+'/'+req.params.id+'/'+r.details.year+'/'+r.details.month+'/'+r.details.day+'/'+req.params.file;
+                        fs.stat(req.dir,function(err,stats){
+                            if(!err){
+                                res.on('finish',function(){res.end()})
+                                fs.createReadStream(req.dir).pipe(res)
+                            }else{
+                                failed()
+                            }
+                        })
                     }else{
-                        req.failed()
+                        failed()
                     }
                 })
             }else{
                 res.end(user.lang['Please Wait for Completion'])
             }
-        }
-        s.auth(req.params,req.fn,res,req);
+        },res,req);
     });
     /**
     * API : Zip Videos and Get Link from fileBin
@@ -1451,52 +1462,52 @@ module.exports = function(s,config,lang,app,io){
                             }
                             fs.unlink(zippedFile);
                         })
-                        if(!fs.existsSync(fileBinDir)){
-                            fs.mkdirSync(fileBinDir);
-                        }
-                        r.forEach(function(video){
-                            var timeFormatted = s.formattedTime(video.time)
-                            video.filename = timeFormatted+'.'+video.ext
-                            var dir = s.getVideoDirectory(video)+video.filename
-                            var tempVideoFile = timeFormatted+' - '+video.mid+'.'+video.ext
-                            fs.writeFileSync(fileBinDir+tempVideoFile, fs.readFileSync(dir))
-                            tempFiles.push(fileBinDir+tempVideoFile)
-                            script += ' "'+tempVideoFile+'"'
-                        })
-                        fs.writeFileSync(tempScript,script,'utf8')
-                        var zipCreate = spawn('sh',(tempScript).split(' '),{detached: true})
-                        zipCreate.stderr.on('data',function(data){
-                            s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Create Error',msg:data.toString()})
-                        })
-                        zipCreate.on('exit',function(data){
-                            fs.unlinkSync(tempScript)
-                            tempFiles.forEach(function(file){
-                                fs.unlink(file,function(){})
+                        fs.mkdir(fileBinDir,function(err){
+                            s.handleFolderError(err)
+                            r.forEach(function(video){
+                                var timeFormatted = s.formattedTime(video.time)
+                                video.filename = timeFormatted+'.'+video.ext
+                                var dir = s.getVideoDirectory(video)+video.filename
+                                var tempVideoFile = timeFormatted+' - '+video.mid+'.'+video.ext
+                                fs.writeFileSync(fileBinDir+tempVideoFile, fs.readFileSync(dir))
+                                tempFiles.push(fileBinDir+tempVideoFile)
+                                script += ' "'+tempVideoFile+'"'
                             })
-                            res.setHeader('Content-Disposition', 'attachment; filename="'+zippedFilename+'"')
-                            var zipDownload = fs.createReadStream(zippedFile)
-                            zipDownload.pipe(res)
-                            zipDownload.on('error', function (error) {
-                                var errorString = error.toString()
-                                s.userLog({
-                                    ke: req.params.ke,
-                                    mid: '$USER'
-                                },{
-                                    title: 'Zip Download Error',
-                                    msg: errorString
+                            fs.writeFileSync(tempScript,script,'utf8')
+                            var zipCreate = spawn('sh',(tempScript).split(' '),{detached: true})
+                            zipCreate.stderr.on('data',function(data){
+                                s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Create Error',msg:data.toString()})
+                            })
+                            zipCreate.on('exit',function(data){
+                                fs.unlinkSync(tempScript)
+                                tempFiles.forEach(function(file){
+                                    fs.unlink(file,function(){})
                                 })
-                                if(zipDownload && zipDownload.destroy){
+                                res.setHeader('Content-Disposition', 'attachment; filename="'+zippedFilename+'"')
+                                var zipDownload = fs.createReadStream(zippedFile)
+                                zipDownload.pipe(res)
+                                zipDownload.on('error', function (error) {
+                                    var errorString = error.toString()
+                                    s.userLog({
+                                        ke: req.params.ke,
+                                        mid: '$USER'
+                                    },{
+                                        title: 'Zip Download Error',
+                                        msg: errorString
+                                    })
+                                    if(zipDownload && zipDownload.destroy){
+                                        zipDownload.destroy()
+                                    }
+                                    res.end(s.prettyPrint({
+                                        ok: false,
+                                        msg: errorString
+                                    }))
+                                })
+                                zipDownload.on('close', function () {
+                                    res.end()
                                     zipDownload.destroy()
-                                }
-                                res.end(s.prettyPrint({
-                                    ok: false,
-                                    msg: errorString
-                                }))
-                            })
-                            zipDownload.on('close', function () {
-                                res.end()
-                                zipDownload.destroy()
-                                fs.unlinkSync(zippedFile)
+                                    fs.unlinkSync(zippedFile)
+                                })
                             })
                         })
                     }else{
@@ -1551,64 +1562,63 @@ module.exports = function(s,config,lang,app,io){
                             }
                             fs.unlink(zippedFile);
                         })
-                        if(!fs.existsSync(fileBinDir)){
-                            fs.mkdirSync(fileBinDir);
-                        }
-                        var cloudDownloadCount = 0
-                        var getFile = function(video,completed){
-                            if(!video)completed();
-                            s.checkDetails(video)
-                            var filename = video.href.split('/')
-                            filename = filename[filename.length - 1]
-                            var timeFormatted = s.formattedTime(video.time)
-                            var tempVideoFile = video.details.type + '-' + video.mid + '-' + filename
-                            var tempFileWriteStream = fs.createWriteStream(fileBinDir+tempVideoFile)
-                            tempFileWriteStream.on('finish', function() {
-                                ++cloudDownloadCount
-                                getFile(r[cloudDownloadCount],completed)
-                            })
-                            var cloudVideoDownload = request(video.href)
-                            cloudVideoDownload.on('response',  function (res) {
-                                res.pipe(tempFileWriteStream)
-                            })
-                            tempFiles.push(fileBinDir+tempVideoFile)
-                            script += ' "'+tempVideoFile+'"'
-                        }
-                        getFile(r[cloudDownloadCount],function(){
-                            fs.writeFileSync(tempScript,script,'utf8')
-                            var zipCreate = spawn('sh',(tempScript).split(' '),{detached: true})
-                            zipCreate.stderr.on('data',function(data){
-                                s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Create Error',msg:data.toString()})
-                            })
-                            zipCreate.on('exit',function(data){
-                                fs.unlinkSync(tempScript)
-                                tempFiles.forEach(function(file){
-                                    fs.unlink(file,function(){})
+                        fs.mkdir(fileBinDir,function(err){
+                            var cloudDownloadCount = 0
+                            var getFile = function(video,completed){
+                                if(!video)completed();
+                                s.checkDetails(video)
+                                var filename = video.href.split('/')
+                                filename = filename[filename.length - 1]
+                                var timeFormatted = s.formattedTime(video.time)
+                                var tempVideoFile = video.details.type + '-' + video.mid + '-' + filename
+                                var tempFileWriteStream = fs.createWriteStream(fileBinDir+tempVideoFile)
+                                tempFileWriteStream.on('finish', function() {
+                                    ++cloudDownloadCount
+                                    getFile(r[cloudDownloadCount],completed)
                                 })
-                                res.setHeader('Content-Disposition', 'attachment; filename="' + zippedFilename + '"')
-                                var zipDownload = fs.createReadStream(zippedFile)
-                                zipDownload.pipe(res)
-                                zipDownload.on('error', function (error) {
-                                    var errorString = error.toString()
-                                    s.userLog({
-                                        ke: req.params.ke,
-                                        mid: '$USER'
-                                    },{
-                                        title: 'Zip Download Error',
-                                        msg: errorString
+                                var cloudVideoDownload = request(video.href)
+                                cloudVideoDownload.on('response',  function (res) {
+                                    res.pipe(tempFileWriteStream)
+                                })
+                                tempFiles.push(fileBinDir+tempVideoFile)
+                                script += ' "'+tempVideoFile+'"'
+                            }
+                            getFile(r[cloudDownloadCount],function(){
+                                fs.writeFileSync(tempScript,script,'utf8')
+                                var zipCreate = spawn('sh',(tempScript).split(' '),{detached: true})
+                                zipCreate.stderr.on('data',function(data){
+                                    s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Create Error',msg:data.toString()})
+                                })
+                                zipCreate.on('exit',function(data){
+                                    fs.unlinkSync(tempScript)
+                                    tempFiles.forEach(function(file){
+                                        fs.unlink(file,function(){})
                                     })
-                                    if(zipDownload && zipDownload.destroy){
+                                    res.setHeader('Content-Disposition', 'attachment; filename="' + zippedFilename + '"')
+                                    var zipDownload = fs.createReadStream(zippedFile)
+                                    zipDownload.pipe(res)
+                                    zipDownload.on('error', function (error) {
+                                        var errorString = error.toString()
+                                        s.userLog({
+                                            ke: req.params.ke,
+                                            mid: '$USER'
+                                        },{
+                                            title: 'Zip Download Error',
+                                            msg: errorString
+                                        })
+                                        if(zipDownload && zipDownload.destroy){
+                                            zipDownload.destroy()
+                                        }
+                                        res.end(s.prettyPrint({
+                                            ok: false,
+                                            msg: errorString
+                                        }))
+                                    })
+                                    zipDownload.on('close', function () {
+                                        res.end()
                                         zipDownload.destroy()
-                                    }
-                                    res.end(s.prettyPrint({
-                                        ok: false,
-                                        msg: errorString
-                                    }))
-                                })
-                                zipDownload.on('close', function () {
-                                    res.end()
-                                    zipDownload.destroy()
-                                    fs.unlinkSync(zippedFile)
+                                        fs.unlinkSync(zippedFile)
+                                    })
                                 })
                             })
                         })
@@ -1662,11 +1672,13 @@ module.exports = function(s,config,lang,app,io){
             s.sqlQuery('SELECT * FROM Videos WHERE ke=? AND mid=? AND `time`=? LIMIT 1',[req.params.ke,req.params.id,time],function(err,r){
                 if(r&&r[0]){
                     req.dir=s.getVideoDirectory(r[0])+req.params.file
-                    if (fs.existsSync(req.dir)){
-                        s.streamMp4FileOverHttp(req.dir,req,res)
-                    }else{
-                        res.end(user.lang['File Not Found in Filesystem'])
-                    }
+                    fs.stat(req.dir,function(err,stats){
+                        if (!err){
+                            s.streamMp4FileOverHttp(req.dir,req,res)
+                        }else{
+                            res.end(user.lang['File Not Found in Filesystem'])
+                        }
+                    })
                 }else{
                     res.end(user.lang['File Not Found in Database'])
                 }
@@ -1678,30 +1690,76 @@ module.exports = function(s,config,lang,app,io){
      */
      app.get(config.webPaths.apiPrefix+':auth/motion/:ke/:id', function (req,res){
          s.auth(req.params,function(user){
-             var endData = {
-
-             }
              if(req.query.data){
                  try{
                      var d = {
                          id: req.params.id,
                          ke: req.params.ke,
-                         details: JSON.parse(req.query.data)
+                         details: s.parseJSON(req.query.data)
                      }
                  }catch(err){
-                     res.end('Data Broken',err)
+                     s.closeJsonResponse(res,{
+                         ok: false,
+                         msg: user.lang['Data Broken']
+                     })
                      return
                  }
              }else{
-                 res.end('No Data')
+                 s.closeJsonResponse(res,{
+                     ok: false,
+                     msg: user.lang['No Data']
+                 })
                  return
              }
              if(!d.ke||!d.id||!s.group[d.ke]){
-                 res.end(user.lang['No Group with this key exists'])
+                 s.closeJsonResponse(res,{
+                     ok: false,
+                     msg: user.lang['No Group with this key exists']
+                 })
                  return
              }
+             if(!s.group[d.ke].rawMonitorConfigurations[d.id]){
+                 s.closeJsonResponse(res,{
+                     ok: false,
+                     msg: user.lang['Monitor or Key does not exist.']
+                 })
+                 return
+             }
+             var details = s.group[d.ke].rawMonitorConfigurations[d.id].details
+             var detectorHttpApi = details.detector_http_api
+             var detectorOn = (details.detector === '1')
+             switch(detectorHttpApi){
+                 case'0':
+                     s.closeJsonResponse(res,{
+                         ok: false,
+                         msg: user.lang['Trigger Blocked']
+                     })
+                    return
+                 break;
+                 case'2':
+                    if(!detectorOn){
+                        s.closeJsonResponse(res,{
+                            ok: false,
+                            msg: user.lang['Trigger Blocked']
+                        })
+                        return
+                    }
+                 break;
+                 case'2':
+                    if(detectorOn){
+                        s.closeJsonResponse(res,{
+                            ok: false,
+                            msg: user.lang['Trigger Blocked']
+                        })
+                        return
+                    }
+                 break;
+             }
              s.triggerEvent(d)
-             res.end(user.lang['Trigger Successful'])
+             s.closeJsonResponse(res,{
+                 ok: true,
+                 msg: user.lang['Trigger Successful']
+             })
          },res,req)
      })
     /**
@@ -1809,13 +1867,13 @@ module.exports = function(s,config,lang,app,io){
         var checkOrigin = function(search){return req.headers.host.indexOf(search)>-1}
         if(checkOrigin('127.0.0.1')){
             if(!req.params.feed){req.params.feed='1'}
-            if(!s.group[req.params.ke].mon[req.params.id].streamIn[req.params.feed]){
-                s.group[req.params.ke].mon[req.params.id].streamIn[req.params.feed] = new events.EventEmitter().setMaxListeners(0)
+            if(!s.group[req.params.ke].activeMonitors[req.params.id].streamIn[req.params.feed]){
+                s.group[req.params.ke].activeMonitors[req.params.id].streamIn[req.params.feed] = new events.EventEmitter().setMaxListeners(0)
             }
             //req.params.feed = Feed Number
             res.connection.setTimeout(0);
             req.on('data', function(buffer){
-                s.group[req.params.ke].mon[req.params.id].streamIn[req.params.feed].emit('data',buffer)
+                s.group[req.params.ke].activeMonitors[req.params.id].streamIn[req.params.feed].emit('data',buffer)
             });
             req.on('end',function(){
     //            console.log('streamIn closed',req.params);
@@ -1873,7 +1931,10 @@ module.exports = function(s,config,lang,app,io){
     /**
     * API : ONVIF Method Controller
      */
-    app.all([config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:action',config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:service/:action'],function (req,res){
+    app.all([
+        config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:action',
+        config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:service/:action'
+    ],function (req,res){
         var response = {ok:false};
         res.setHeader('Content-Type', 'application/json');
         s.auth(req.params,function(user){
@@ -1904,7 +1965,7 @@ module.exports = function(s,config,lang,app,io){
                 var completeAction = function(command){
                     if(command.then){
                         command.then(actionCallback).catch(function(error){
-                            errorMessage('Device responded with an error',error)
+                            errorMessage('Device Action responded with an error',error)
                         })
                     }else if(command){
                         response.ok = true
@@ -1927,6 +1988,7 @@ module.exports = function(s,config,lang,app,io){
                 }else{
                     action = Camera[req.params.action]
                 }
+                console.log(s.parseJSON(req.query.options))
                 if(!action || typeof action !== 'function'){
                     errorMessage(req.params.action+' is not an available ONVIF function. See https://github.com/futomi/node-onvif for functions.')
                 }else{
@@ -1970,10 +2032,10 @@ module.exports = function(s,config,lang,app,io){
                     completeAction(command)
                 }
             }
-            if(!s.group[req.params.ke].mon[req.params.id].onvifConnection){
+            if(!s.group[req.params.ke].activeMonitors[req.params.id].onvifConnection){
                 //prepeare onvif connection
                 var controlURL
-                var monitorConfig = s.group[req.params.ke].mon_conf[req.params.id]
+                var monitorConfig = s.group[req.params.ke].rawMonitorConfigurations[req.params.id]
                 if(!monitorConfig.details.control_base_url||monitorConfig.details.control_base_url===''){
                     controlURL = s.buildMonitorUrl(monitorConfig, true)
                 }else{
@@ -1981,19 +2043,19 @@ module.exports = function(s,config,lang,app,io){
                 }
                 var controlURLOptions = s.cameraControlOptionsFromUrl(controlURL,monitorConfig)
                 //create onvif connection
-                s.group[req.params.ke].mon[req.params.id].onvifConnection = new onvif.OnvifDevice({
+                s.group[req.params.ke].activeMonitors[req.params.id].onvifConnection = new onvif.OnvifDevice({
                     xaddr : 'http://' + controlURLOptions.host + ':' + controlURLOptions.port + '/onvif/device_service',
                     user : controlURLOptions.username,
                     pass : controlURLOptions.password
                 })
-                var device = s.group[req.params.ke].mon[req.params.id].onvifConnection
+                var device = s.group[req.params.ke].activeMonitors[req.params.id].onvifConnection
                 device.init().then((info) => {
                     if(info)doAction(device)
                 }).catch(function(error){
                     return errorMessage('Device responded with an error',error)
                 })
             }else{
-                doAction(s.group[req.params.ke].mon[req.params.id].onvifConnection)
+                doAction(s.group[req.params.ke].activeMonitors[req.params.id].onvifConnection)
             }
         },res,req);
     })
@@ -2016,6 +2078,30 @@ module.exports = function(s,config,lang,app,io){
                 })
             }else{
                 endData.msg = lang.postDataBroken
+            }
+            s.closeJsonResponse(res,endData)
+        },res,req)
+    })
+    /**
+    * API : Get Definitions JSON
+     */
+    app.get(config.webPaths.apiPrefix+':auth/definitions/:ke',function (req,res){
+        s.auth(req.params,function(user){
+            var endData = {
+                ok: true,
+                definitions: s.getDefinitonFile(user.details.lang)
+            }
+            s.closeJsonResponse(res,endData)
+        },res,req)
+    })
+    /**
+    * API : Get Language JSON
+     */
+    app.get(config.webPaths.apiPrefix+':auth/language/:ke',function (req,res){
+        s.auth(req.params,function(user){
+            var endData = {
+                ok: true,
+                definitions: s.getLanguageFile(user.details.lang)
             }
             s.closeJsonResponse(res,endData)
         },res,req)

@@ -72,8 +72,8 @@ module.exports = function(s,config,lang){
     }
     var onAccountSaveForSftp = function(group,userDetails,user){
         if(s.group[user.ke] && s.group[user.ke].sftp && s.group[user.ke].init.use_sftp !== '0' && s.group[user.ke].init.sftp_save === '1'){
-            Object.keys(s.group[user.ke].mon_conf).forEach(function(monitorId){
-                createSftpDirectory(s.group[user.ke].mon_conf[monitorId])
+            Object.keys(s.group[user.ke].rawMonitorConfigurations).forEach(function(monitorId){
+                createSftpDirectory(s.group[user.ke].rawMonitorConfigurations[monitorId])
             })
         }
     }
@@ -87,4 +87,92 @@ module.exports = function(s,config,lang){
         onAccountSave: onAccountSaveForSftp,
         onMonitorSave: onMonitorSaveForSftp,
     })
+    return {
+       "evaluation": "details.use_sftp !== '0'",
+       "name": lang['SFTP (SSH File Transfer)'],
+       "color": "forestgreen",
+       "info": [
+           {
+              "name": "detail=sftp_save",
+              "selector":"autosave_sftp",
+              "field": lang.Autosave,
+              "description": "",
+              "default": lang.No,
+              "example": "",
+              "fieldType": "select",
+              "possible": [
+                  {
+                     "name": lang.No,
+                     "value": "0"
+                  },
+                  {
+                     "name": lang.Yes,
+                     "value": "1"
+                  }
+              ]
+           },
+           {
+               "hidden": true,
+              "field": lang.Host,
+              "name": "detail=sftp_host",
+              "form-group-class": "autosave_sftp_input autosave_sftp_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+           },
+           {
+               "hidden": true,
+              "field": lang.Port,
+              "name": "detail=sftp_port",
+              "form-group-class": "autosave_sftp_input autosave_sftp_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+           {
+               "hidden": true,
+              "field": lang.Username,
+              "name": "detail=sftp_username",
+              "form-group-class": "autosave_sftp_input autosave_sftp_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+           {
+               "hidden": true,
+              "field": lang.Password,
+              "fieldType": "password",
+              "name": "detail=sftp_password",
+              "form-group-class": "autosave_sftp_input autosave_sftp_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+           {
+               "hidden": true,
+              "field": lang.privateKey,
+              "fieldType": "textarea",
+              "name": "detail=sftp_privateKey",
+              "form-group-class": "autosave_sftp_input autosave_sftp_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+          {
+              "hidden": true,
+             "name": "detail=sftp_dir",
+             "field": lang['Save Directory'],
+             "form-group-class":"autosave_sftp_input autosave_sftp_1",
+             "description": "",
+             "default": "/",
+             "example": "",
+             "possible": ""
+          },
+       ]
+    }
 }

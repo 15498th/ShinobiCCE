@@ -1,10 +1,12 @@
-var moment = require('moment');
-var crypto = require('crypto');
-var exec = require('child_process').exec;
+var fs = require('fs')
+var moment = require('moment')
+var crypto = require('crypto')
+var exec = require('child_process').exec
 var spawn = require('child_process').spawn;
-var events = require('events');
-var http = require('http');
-var https = require('https');
+var events = require('events')
+var http = require('http')
+var https = require('https')
+const async = require("async")
 module.exports = function(s,config){
     //kill any ffmpeg running
     s.ffmpegKill=function(){
@@ -75,7 +77,12 @@ module.exports = function(s,config){
         break;
     }
     //load camera controller vars
-    s.nameToTime=function(x){x=x.split('.')[0].split('T'),x[1]=x[1].replace(/-/g,':');x=x.join(' ');return x;}
+    s.nameToTime=function(x){
+        x = x.split('.')[0].split('T')
+        if(x[1])x[1] = x[1].replace(/-/g,':')
+        x = x.join(' ')
+        return x
+    }
     s.ratio=function(width,height,ratio){ratio = width / height;return ( Math.abs( ratio - 4 / 3 ) < Math.abs( ratio - 16 / 9 ) ) ? '4:3' : '16:9';}
     s.randomNumber=function(x){
         if(!x){x=10};
@@ -206,7 +213,7 @@ module.exports = function(s,config){
         }
         return url
     }
-    s.file=function(x,e){
+    s.file = function(x,e,callback){
         if(!e){e={}};
         switch(x){
             case'size':
@@ -214,19 +221,25 @@ module.exports = function(s,config){
             break;
             case'delete':
                 if(!e){return false;}
-                return exec('rm -f '+e,{detached: true});
+                return exec('rm -f '+e,{detached: true},function(err){
+                    if(callback)callback(err)
+                })
             break;
             case'deleteFolder':
                 if(!e){return false;}
-                return exec('rm -rf '+e,{detached: true});
+                exec('rm -rf '+e,{detached: true},function(err){
+                    if(callback)callback(err)
+                })
             break;
             case'deleteFiles':
                 if(!e.age_type){e.age_type='min'};if(!e.age){e.age='1'};
-                exec('find '+e.path+' -type f -c'+e.age_type+' +'+e.age+' -exec rm -f {} +',{detached: true});
+                exec('find '+e.path+' -type f -c'+e.age_type+' +'+e.age+' -exec rm -f {} +',{detached: true},function(err){
+                    if(callback)callback(err)
+                })
             break;
         }
     }
-    s.createTimeout = function(timeoutVar,timeoutLength,defaultLength,multiplier,callback){
+    s.createTimeout = function(timeoutVar,parentVar,timeoutLength,defaultLength,multiplier,callback){
         var theTimeout
         if(!multiplier)multiplier = 1000 * 60
         if(!timeoutLength || timeoutLength === ''){
@@ -234,12 +247,43 @@ module.exports = function(s,config){
         }else{
             theTimeout = parseFloat(timeoutLength) * multiplier
         }
-        clearTimeout(timeoutVar)
-        timeoutVar = setTimeout(function(){
-            clearTimeout(timeoutVar)
-            delete(timeoutVar)
+        clearTimeout(parentVar[timeoutVar])
+        parentVar[timeoutVar] = setTimeout(function(){
+            clearTimeout(parentVar[timeoutVar])
+            delete(parentVar[timeoutVar])
             if(callback)callback()
         },theTimeout)
+        return parentVar[timeoutVar]
+    }
+    s.handleFolderError = function(err){
+        if(err){
+            switch(err.code){
+                case'EEXIST':
+                break;
+                default:
+                    console.log(err)
+                break;
+            }
+        }
+    }
+    s.isCorrectFilenameSyntax = function(string){
+        return RegExp('[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]-[0-9][0-9]-[0-9][0-9]').test(string)
+    }
+    var readFile = async.queue(function(filename, callback) {
+        fs.readFile(filename,"utf-8",callback)
+    }, 4);
+    s.readFile = function(filename, callback){
+        return readFile.push(filename, callback)
+    }
+    var fileStats = async.queue(function(filename, callback) {
+        fs.stat(filename,callback)
+    }, 4);
+    s.fileStats = function(filename, callback){
+        return fileStats.push(filename, callback)
+    }
+    s.kilobyteToMegabyte = function(kb,places){
+        if(!places)places = 2
+        return (kb/1000000).toFixed(places)
     }
     Object.defineProperty(Array.prototype, 'chunk', {
         value: function(chunkSize){

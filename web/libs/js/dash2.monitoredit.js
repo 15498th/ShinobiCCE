@@ -6,212 +6,58 @@ $.aM.f=$.aM.e.find('form')
 $.aM.channels=$('#monSectionStreamChannels')
 $.aM.maps=$('#monSectionInputMaps')
 $.aM.e.find('.follow-list ul').affix();
-$.each($.ccio.definitions["Monitor Settings"].blocks,function(n,v){
-    $.each(v.info,function(m,b){
-        if(!b.name){
-            console.log(b)
-            return
-        }
-        if(b.name.indexOf('detail=')>-1){
-            b.name=b.name.replace('detail=','')
-            v.element=$.aM.e.find('[detail="'+b.name+'"]')
-        }else{
-            v.element=$.aM.e.find('[name="'+b.name+'"]')
-        }
-        v.parent=v.element.parents('.form-group').find('label div:first-child span')
-        v.parent.find('small').remove()
-        v.parent.append('<small class="hover">'+b.description+'</small>')
-    })
-})
 $.aM.generateDefaultMonitorSettings=function(){
     return {
-    "mode": "start",
-    "mid": $.ccio.gid(),
-    "name": "Some Stream",
-    "type": "h264",
-    "protocol": "rtsp",
-    "host": "",
-    "port": "",
-    "path": "",
-    "ext": "mp4",
-    "fps": "1",
-    "width": "640",
-    "height": "480",
-    "details": JSON.stringify({
-        "fatal_max": "0",
-        "notes": "",
-        "dir": "",
-        "auto_host_enable": "1",
-        "auto_host": "",
-        "rtsp_transport": "tcp",
-        "muser": "",
-        "mpass": "",
-        "port_force": "0",
-        "aduration": "1000000",
-        "probesize": "1000000",
-        "stream_loop": "0",
-        "sfps": "",
-        "accelerator": "0",
-        "hwaccel": "auto",
-        "hwaccel_vcodec": "",
-        "hwaccel_device": "",
-        "stream_type": "mp4",
-        "stream_flv_type": "ws",
-        "stream_mjpeg_clients": "",
-        "stream_vcodec": "copy",
-        "stream_acodec": "no",
-        "hls_time": "2",
-        "preset_stream": "ultrafast",
-        "hls_list_size": "3",
-        "signal_check": "10",
-        "signal_check_log": "0",
-        "stream_quality": "15",
-        "stream_fps": "2",
-        "stream_scale_x": "",
-        "stream_scale_y": "",
-        "rotate_stream": "no",
-        "svf": "",
-        "rtmp_vcodec": "h264",
-        "rtmp_acodec": "aac",
-        "stream_timestamp": "0",
-        "stream_timestamp_font": "",
-        "stream_timestamp_font_size": "",
-        "stream_timestamp_color": "",
-        "stream_timestamp_box_color": "",
-        "stream_timestamp_x": "",
-        "stream_timestamp_y": "",
-        "stream_watermark": "0",
-        "stream_watermark_location": "",
-        "stream_watermark_position": "tr",
-        "snap": "0",
-        "snap_fps": "",
-        "snap_scale_x": "",
-        "snap_scale_y": "",
-        "snap_vf": "",
-        "rawh264": "0",
-        "rawh264_vcodec": "copy",
-        "rawh264_acodec": "",
-        "rawh264_fps": "",
-        "rawh264_scale_x": "",
-        "rawh264_scale_y": "",
-        "rawh264_crf": "",
-        "rawh264_vf": "",
-        "vcodec": "copy",
-        "crf": "1",
-        "preset_record": "",
-        "acodec": "no",
-        "dqf": "0",
-        "cutoff": "15",
-        "rotate_record": "no",
-        "vf": "",
-        "timestamp": "0",
-        "timestamp_font": "",
-        "timestamp_font_size": "10",
-        "timestamp_color": "white",
-        "timestamp_box_color": "0x00000000@1",
-        "timestamp_x": "(w-tw)/2",
-        "timestamp_y": "0",
-        "watermark": "0",
-        "watermark_location": "",
-        "watermark_position": "tr",
-        "cust_input": "",
-        "cust_snap": "",
-        "cust_rawh264": "",
-        "cust_detect": "",
-        "cust_stream": "",
-        "cust_stream_server": "",
-        "cust_record": "",
-        "custom_output": "",
-        "detector": "0",
-        "detector_pam": "1",
-        "detector_webhook": "0",
-        "detector_webhook_url": "",
-        "detector_command_enable": "0",
-        "detector_command": "",
-        "detector_command_timeout": "",
-        "detector_lock_timeout": "",
-        "detector_save": "0",
-        "detector_frame_save": "0",
-        "detector_mail": "0",
-        "detector_mail_timeout": "",
-        "detector_record_method": "sip",
-        "detector_trigger": "1",
-        "detector_trigger_record_fps": "",
-        "detector_timeout": "10",
-        "watchdog_reset": "0",
-        "detector_delete_motionless_videos": "0",
-        "detector_send_frames": "1",
-        "detector_region_of_interest": "0",
-        "detector_fps": "",
-        "detector_scale_x": "640",
-        "detector_scale_y": "480",
-        "detector_use_motion": "1",
-        "detector_use_detect_object": "0",
-        "detector_frame": "0",
-        "detector_sensitivity": "",
-        "detector_max_sensitivity": "",
-        "detector_threshold": "1",
-        "detector_color_threshold": "",
-        "cords": "[]",
-        "detector_buffer_vcodec": "auto",
-        "detector_buffer_fps": "",
-        "detector_buffer_hls_time": "",
-        "detector_buffer_hls_list_size": "",
-        "detector_buffer_start_number": "",
-        "detector_buffer_live_start_index": "",
-        "detector_lisence_plate": "0",
-        "detector_lisence_plate_country": "us",
-        "detector_notrigger": "0",
-        "detector_notrigger_mail": "0",
-        "detector_notrigger_timeout": "",
-        "control": "0",
-        "control_base_url": "",
-        "control_stop": "0",
-        "control_url_stop_timeout": "",
-        "control_url_center": "",
-        "control_url_left": "",
-        "control_url_left_stop": "",
-        "control_url_right": "",
-        "control_url_right_stop": "",
-        "control_url_up": "",
-        "control_url_up_stop": "",
-        "control_url_down": "",
-        "control_url_down_stop": "",
-        "control_url_enable_nv": "",
-        "control_url_disable_nv": "",
-        "control_url_zoom_out": "",
-        "control_url_zoom_out_stop": "",
-        "control_url_zoom_in": "",
-        "control_url_zoom_in_stop": "",
-        "tv_channel": "0",
-        "groups": "[]",
-        "loglevel": "warning",
-        "sqllog": "0",
-        "detector_cascades": ""
-    }),
-    "shto": "[]",
-    "shfr": "[]"
+   "mode": "start",
+   "mid": "Gdvu1tX6Eq",
+   "name": "Some Stream",
+   "type": "h264",
+   "host": "",
+   "port": "",
+   "path": "/",
+   "height": "480",
+   "width": "640",
+   "ext": "mp4",
+   "protocol": "http",
+   "fps": "1",
+   "details": "{\"max_keep_days\":\"\",\"notes\":\"\",\"dir\":\"\",\"rtmp_key\":\"\",\"auto_host_enable\":\"1\",\"auto_host\":\"\",\"rtsp_transport\":\"tcp\",\"muser\":\"\",\"mpass\":\"\",\"port_force\":\"0\",\"fatal_max\":\"0\",\"skip_ping\":null,\"is_onvif\":null,\"onvif_port\":\"\",\"primary_input\":null,\"aduration\":\"1000000\",\"probesize\":\"1000000\",\"stream_loop\":\"0\",\"sfps\":\"\",\"accelerator\":\"0\",\"hwaccel\":\"auto\",\"hwaccel_vcodec\":\"\",\"hwaccel_device\":\"\",\"use_coprocessor\":null,\"stream_type\":\"mp4\",\"stream_flv_type\":\"ws\",\"stream_flv_maxLatency\":\"\",\"stream_mjpeg_clients\":\"\",\"stream_vcodec\":\"copy\",\"stream_acodec\":\"no\",\"hls_time\":\"2\",\"hls_list_size\":\"3\",\"preset_stream\":\"ultrafast\",\"signal_check\":\"10\",\"signal_check_log\":\"0\",\"stream_quality\":\"15\",\"stream_fps\":\"2\",\"stream_scale_x\":\"\",\"stream_scale_y\":\"\",\"rotate_stream\":\"no\",\"svf\":\"\",\"tv_channel\":\"0\",\"tv_channel_id\":\"\",\"tv_channel_group_title\":\"\",\"stream_timestamp\":\"0\",\"stream_timestamp_font\":\"\",\"stream_timestamp_font_size\":\"\",\"stream_timestamp_color\":\"\",\"stream_timestamp_box_color\":\"\",\"stream_timestamp_x\":\"\",\"stream_timestamp_y\":\"\",\"stream_watermark\":\"0\",\"stream_watermark_location\":\"\",\"stream_watermark_position\":\"tr\",\"snap\":\"0\",\"snap_fps\":\"\",\"snap_scale_x\":\"\",\"snap_scale_y\":\"\",\"snap_vf\":\"\",\"vcodec\":\"copy\",\"crf\":\"1\",\"acodec\":\"no\",\"record_scale_y\":\"\",\"record_scale_x\":\"\",\"cutoff\":\"15\",\"rotate_record\":\"no\",\"vf\":\"\",\"timestamp\":\"0\",\"timestamp_font\":\"\",\"timestamp_font_size\":\"10\",\"timestamp_color\":\"white\",\"timestamp_box_color\":\"0x00000000@1\",\"timestamp_x\":\"(w-tw)/2\",\"timestamp_y\":\"0\",\"watermark\":\"0\",\"watermark_location\":\"\",\"watermark_position\":\"tr\",\"record_timelapse\":null,\"record_timelapse_mp4\":null,\"record_timelapse_fps\":null,\"record_timelapse_scale_x\":\"\",\"record_timelapse_scale_y\":\"\",\"record_timelapse_vf\":\"\",\"record_timelapse_watermark\":null,\"record_timelapse_watermark_location\":\"\",\"record_timelapse_watermark_position\":null,\"cust_input\":\"\",\"cust_stream\":\"\",\"cust_snap\":\"\",\"cust_record\":\"\",\"cust_detect\":\"\",\"cust_sip_record\":\"\",\"custom_output\":\"\",\"detector\":\"0\",\"detector_http_api\":null,\"detector_send_frames\":\"1\",\"detector_lock_timeout\":\"\",\"detector_save\":\"0\",\"detector_fps\":\"\",\"detector_scale_x\":\"640\",\"detector_scale_y\":\"480\",\"detector_record_method\":\"sip\",\"detector_trigger\":\"1\",\"detector_trigger_record_fps\":\"\",\"detector_timeout\":\"10\",\"detector_send_video_length\":\"\",\"watchdog_reset\":\"0\",\"detector_delete_motionless_videos\":\"0\",\"det_multi_trig\":null,\"group_detector_multi\":\"\",\"detector_webhook\":\"0\",\"detector_webhook_url\":\"\",\"detector_webhook_method\":null,\"detector_command_enable\":\"0\",\"detector_command\":\"\",\"detector_command_timeout\":\"\",\"detector_mail\":\"0\",\"detector_mail_timeout\":\"\",\"detector_discordbot\":null,\"detector_discordbot_send_video\":null,\"detector_discordbot_timeout\":\"\",\"use_detector_filters\":null,\"use_detector_filters_object\":null,\"cords\":\"[]\",\"detector_filters\":\"\",\"detector_pam\":\"1\",\"detector_show_matrix\":null,\"detector_sensitivity\":\"\",\"detector_max_sensitivity\":\"\",\"detector_threshold\":\"1\",\"detector_color_threshold\":\"\",\"detector_frame\":\"0\",\"detector_noise_filter\":null,\"detector_noise_filter_range\":\"\",\"detector_notrigger\":\"0\",\"detector_notrigger_mail\":\"0\",\"detector_notrigger_timeout\":\"\",\"detector_audio\":null,\"detector_audio_min_db\":\"\",\"detector_audio_max_db\":\"\",\"detector_use_detect_object\":\"0\",\"detector_send_frames_object\":null,\"detector_obj_region\":null,\"detector_use_motion\":\"1\",\"detector_fps_object\":\"\",\"detector_scale_x_object\":\"\",\"detector_scale_y_object\":\"\",\"detector_lisence_plate\":\"0\",\"detector_lisence_plate_country\":\"us\",\"detector_buffer_vcodec\":\"auto\",\"detector_buffer_acodec\":null,\"detector_buffer_fps\":\"\",\"detector_buffer_hls_time\":\"\",\"detector_buffer_hls_list_size\":\"\",\"detector_buffer_start_number\":\"\",\"detector_buffer_live_start_index\":\"\",\"control\":\"0\",\"control_base_url\":\"\",\"control_url_method\":null,\"control_digest_auth\":null,\"control_stop\":\"0\",\"control_url_stop_timeout\":\"\",\"control_url_center\":\"\",\"control_url_left\":\"\",\"control_url_left_stop\":\"\",\"control_url_right\":\"\",\"control_url_right_stop\":\"\",\"control_url_up\":\"\",\"control_url_up_stop\":\"\",\"control_url_down\":\"\",\"control_url_down_stop\":\"\",\"control_url_enable_nv\":\"\",\"control_url_disable_nv\":\"\",\"control_url_zoom_out\":\"\",\"control_url_zoom_out_stop\":\"\",\"control_url_zoom_in\":\"\",\"control_url_zoom_in_stop\":\"\",\"groups\":\"[]\",\"loglevel\":\"warning\",\"sqllog\":\"0\",\"detector_cascades\":\"\",\"stream_channels\":\"\",\"input_maps\":\"\",\"input_map_choices\":\"\"}",
+   "shto": "[]",
+   "shfr": "[]"
 }
 }
-$.aM.drawList=function(){
-    e={list:$.aM.e.find('.follow-list ul'),html:''}
-    $.aM.e.find('[section]:visible').each(function(n,v){
-        e.e=$(v)
-        e.id = e.e.attr('id');
-        e.title = e.e.find('h4').first().html();
-        var div = document.createElement('div');
-        div.innerHTML = e.title;
-        var elements = div.getElementsByTagName('a');
-        while (elements[0])
-           elements[0].parentNode.removeChild(elements[0])
-        var elements = div.getElementsByTagName('small');
-        while (elements[0])
-           elements[0].parentNode.removeChild(elements[0])
-        var repl = div.innerHTML;
-        e.html += '<li><a class="scrollTo" href="#'+e.id+'" scrollToParent="#add_monitor .modal-body">'+repl+'</a></li>'
+$.aM.sections = {}
+var addSection = function(section){
+    $.aM.sections[section.name] = section.id
+    if(section.info){
+        $.each(section.info,function(m,block){
+            if(block.isFormGroupGroup === true){
+                addSection(block)
+            }
+        })
+    }
+    if(section.blocks){
+        $.each(section.blocks,function(m,block){
+            addSection(block)
+        })
+    }
+}
+$.each($.ccio.definitions['Monitor Settings'].blocks,function(n,section){
+    addSection(section)
+})
+$.aM.drawList = function(){
+    var list = $.aM.e.find('.follow-list ul')
+    var html = ''
+    $.each($.aM.sections,function(sectionName,sectionId){
+        var el = $('#' + sectionId + ':visible')
+        if(el.length > 0){
+            html += '<li><a class="scrollTo" href="#' + sectionId + '" scrollToParent="#add_monitor .modal-body">' + sectionName + '</a></li>'
+        }
     })
-    e.list.html(e.html)
+    list.html(html)
 }
+$.aM.e.on('shown.bs.modal', function () {
+    $.aM.drawList()
+})
 $.aM.import=function(e){
     $.get($.ccio.init('location',$user)+$user.auth_token+'/hls/'+e.values.ke+'/'+e.values.mid+'/detectorStream.m3u8',function(data){
         $('#monEditBufferPreview').html(data)
@@ -350,7 +196,7 @@ $.aM.import=function(e){
         }
     })
     $.aM.monitorsForCopy.find('optgroup').html(tmp)
-    setTimeout(function(){$.aM.drawList()},1000)
+    $.aM.drawList()
 }
 //parse "Automatic" field in "Input" Section
 $.aM.e.on('change','.auto_host_fill input,.auto_host_fill select',function(e){
@@ -468,7 +314,18 @@ $.aM.f.submit(function(ee){
         })
         var alterSettings = function(settingsToAlter,monitor){
             monitor.details = JSON.parse(monitor.details);
-            $.aM.e.find(settingsToAlter).find('input,select,textarea').each(function(n,v){
+            var searchElements = []
+            if(settingsToAlter.indexOf('field=') > -1){
+                var splitSettingsToAlter = settingsToAlter.split('=')
+                if(splitSettingsToAlter[1] === 'detail' && splitSettingsToAlter[2]){
+                    searchElements = $.aM.e.find(`[detail="${splitSettingsToAlter[2]}"]`)
+                }else{
+                    searchElements = $.aM.e.find(`[name="${splitSettingsToAlter[1]}"]`)
+                }
+            }else{
+                searchElements = $.aM.e.find(settingsToAlter).find('input,select,textarea')
+            }
+            searchElements.each(function(n,v){
                 var el = $(v);
                 var name = el.attr('name')
                 var detail = el.attr('detail')

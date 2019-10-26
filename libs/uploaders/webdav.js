@@ -76,7 +76,7 @@ module.exports = function(s,config,lang){
        if(wfs && s.group[e.ke].init.use_webdav !== '0' && s.group[e.ke].init.webdav_save === "1"){
            var webdavUploadDir = s.group[e.ke].init.webdav_dir+e.ke+'/'+e.mid+'/'
            var startWebDavUpload = function(){
-               s.group[e.ke].mon[e.id].webdavDirExist = true
+               s.group[e.ke].activeMonitors[e.id].webdavDirExist = true
                var wfsWriteStream =
                fs.createReadStream(k.dir + k.filename).pipe(wfs.createWriteStream(webdavUploadDir + k.filename))
                if(s.group[e.ke].init.webdav_log === '1'){
@@ -102,7 +102,7 @@ module.exports = function(s,config,lang){
                    s.purgeCloudDiskForGroup(e,'webdav')
                }
            }
-           if(s.group[e.ke].mon[e.id].webdavDirExist !== true){
+           if(s.group[e.ke].activeMonitors[e.id].webdavDirExist !== true){
                //check if webdav dir exist
                var parentPoint = 0
                var webDavParentz = webdavUploadDir.split('/')
@@ -166,4 +166,125 @@ module.exports = function(s,config,lang){
         beforeAccountSave: beforeAccountSaveForWebDav,
         onAccountSave: cloudDiskUseStartupForWebDav,
     })
+    return {
+       "evaluation": "details.use_webdav !== '0'",
+       "name": lang.WebDAV,
+       "color": "forestgreen",
+       "info": [
+           {
+              "name": "detail=webdav_save",
+              "selector":"autosave_webdav",
+              "field": lang.Autosave,
+              "description": "",
+              "default": lang.No,
+              "example": "",
+              "fieldType": "select",
+              "possible": [
+                  {
+                     "name": lang.No,
+                     "value": "0"
+                  },
+                  {
+                     "name": lang.Yes,
+                     "value": "1"
+                  }
+              ]
+           },
+           {
+              "hidden": true,
+              "field": lang.URL,
+              "name": "detail=webdav_url",
+              "form-group-class": "autosave_webdav_input autosave_webdav_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+           },
+           {
+              "hidden": true,
+              "field": lang.Username,
+              "name": "detail=webdav_user",
+              "form-group-class": "autosave_webdav_input autosave_webdav_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+           {
+               "hidden": true,
+              "field": lang.Password,
+              "fieldType": "password",
+              "name": "detail=webdav_pass",
+              "form-group-class": "autosave_webdav_input autosave_webdav_1",
+              "description": "",
+              "default": "",
+              "example": "",
+              "possible": ""
+          },
+          {
+              "hidden": true,
+             "name": "detail=webdav_log",
+             "field": lang['Save Links to Database'],
+             "fieldType": "select",
+             "selector": "h_webdavsld",
+             "form-group-class":"autosave_webdav_input autosave_webdav_1",
+             "description": "",
+             "default": "",
+             "example": "",
+             "possible": [
+                 {
+                    "name": lang.No,
+                    "value": "0"
+                 },
+                 {
+                    "name": lang.Yes,
+                    "value": "1"
+                 }
+             ]
+         },
+         {
+             "hidden": true,
+            "name": "detail=use_webdav_size_limit",
+            "field": lang['Use Max Storage Amount'],
+            "fieldType": "select",
+            "selector": "h_webdavzl",
+            "form-group-class":"autosave_webdav_input autosave_webdav_1",
+            "form-group-class-pre-layer":"h_webdavsld_input h_webdavsld_1",
+            "description": "",
+            "default": "",
+            "example": "",
+            "possible":  [
+                {
+                   "name": lang.No,
+                   "value": "0"
+                },
+                {
+                   "name": lang.Yes,
+                   "value": "1"
+                }
+            ]
+         },
+         {
+             "hidden": true,
+            "name": "detail=webdav_size_limit",
+            "field": lang['Max Storage Amount'],
+            "form-group-class":"autosave_webdav_input autosave_webdav_1",
+            "form-group-class-pre-layer":"h_webdavsld_input h_webdavsld_1",
+            "description": "",
+            "default": "10000",
+            "example": "",
+            "possible": ""
+         },
+         {
+             "hidden": true,
+            "name": "detail=webdav_dir",
+            "field": lang['Save Directory'],
+            "form-group-class":"autosave_webdav_input autosave_webdav_1",
+            "description": "",
+            "default": "/",
+            "example": "",
+            "possible": ""
+         },
+       ]
+    }
 }

@@ -143,4 +143,28 @@ module.exports = function(s,config){
         s.onWebSocketDisconnectionExtensions.push(callback)
     }
     //
+    s.onGetCpuUsageExtensions = []
+    s.onGetCpuUsage = function(callback){
+        s.onGetCpuUsageExtensions.push(callback)
+    }
+    //
+    s.onGetRamUsageExtensions = []
+    s.onGetRamUsage = function(callback){
+        s.onGetRamUsageExtensions.push(callback)
+    }
+    //
+    /////// VIDEOS ////////
+    s.insertCompletedVideoExtensions = []
+    s.insertCompletedVideoExtender = function(callback){
+        s.insertCompletedVideoExtensions.push(callback)
+    }
+    s.onBeforeInsertCompletedVideoExtensions = []
+    s.onBeforeInsertCompletedVideo = function(callback){
+        s.onBeforeInsertCompletedVideoExtensions.push(callback)
+    }
+    /////// TIMELAPSE ////////
+    s.onInsertTimelapseFrameExtensions = []
+    s.onInsertTimelapseFrame = function(callback){
+        s.onInsertTimelapseFrameExtensions.push(callback)
+    }
 }

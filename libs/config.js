@@ -6,12 +6,12 @@ module.exports = function(s){
     }
     var config = require(s.location.config);
     if(!config.productType){
-        config.productType='CE'
+        config.productType = 'CE'
     }
     //config defaults
     if(config.cpuUsageMarker === undefined){config.cpuUsageMarker='%Cpu'}
     if(config.customCpuCommand === undefined){config.customCpuCommand=null}
-    if(config.autoDropCache === undefined){config.autoDropCache=true}
+    if(config.autoDropCache === undefined){config.autoDropCache=false}
     if(config.doSnapshot === undefined){config.doSnapshot=true}
     if(config.restart === undefined){config.restart={}}
     if(config.systemLog === undefined){config.systemLog=true}
@@ -27,7 +27,8 @@ module.exports = function(s){
     if(config.cron.deleteOverMaxOffset === undefined)config.cron.deleteOverMaxOffset=0.9;
     if(config.cron.deleteLogs === undefined)config.cron.deleteLogs=true;
     if(config.cron.deleteEvents === undefined)config.cron.deleteEvents=true;
-    if(config.cron.deleteFileBins === undefined)config.cron.deleteFileBins=true;
+    if(config.cron.deleteFileBinsOverMax === undefined)config.cron.deleteFileBins=true;
+    if(config.deleteFileBins === undefined)config.deleteFileBinsOverMax=true;
     if(config.cron.interval === undefined)config.cron.interval=1;
     if(config.databaseType === undefined){config.databaseType='mysql'}
     if(config.pluginKeys === undefined)config.pluginKeys={};
@@ -37,7 +38,7 @@ module.exports = function(s){
     if(config.pipeAddition === undefined){config.pipeAddition=10}else{config.pipeAddition=parseInt(config.pipeAddition)}
     if(config.hideCloudSaveUrls === undefined){config.hideCloudSaveUrls = true}
     if(config.insertOrphans === undefined){config.insertOrphans = true}
-    if(config.orphanedVideoCheckMax === undefined){config.orphanedVideoCheckMax = 20}
+    if(config.orphanedVideoCheckMax === undefined){config.orphanedVideoCheckMax = 2}
     if(config.detectorMergePamRegionTriggers === undefined){config.detectorMergePamRegionTriggers = false}
     //Child Nodes
     if(config.childNodes === undefined)config.childNodes = {};

@@ -26,7 +26,7 @@ module.exports = function(s,config,lang){
      */
     s.buildVideoLinks = function(videos,options){
         videos.forEach(function(v){
-            var details = JSON.parse(v.details)
+            var details = s.parseJSON(v.details)
             var queryString = []
             if(details.isUTC === true){
                 queryString.push('isUTC=true')
@@ -45,7 +45,7 @@ module.exports = function(s,config,lang){
             }
             v.filename = s.formattedTime(v.time)+'.'+v.ext;
             if(!options.videoParam)options.videoParam = 'videos'
-            var href = '/'+options.auth+'/'+options.videoParam+'/'+v.ke+'/'+v.mid+'/'+v.filename;
+            var href = s.checkCorrectPathEnding(config.webPaths.apiPrefix) + options.auth+'/'+options.videoParam+'/'+v.ke+'/'+v.mid+'/'+v.filename;
             v.actionUrl = href
             v.links = {
                 deleteVideo : href+'/delete' + queryString,
@@ -56,16 +56,11 @@ module.exports = function(s,config,lang){
             v.details = details
         })
     }
-    //extender for "s.insertCompletedVideo"
-    s.insertCompletedVideoExtensions = []
-    s.insertCompletedVideoExtender = function(callback){
-        s.insertCompletedVideoExtensions.push(callback)
-    }
     s.insertDatabaseRow = function(e,k,callback){
         s.checkDetails(e)
         //save database row
-        k.details = {}
-        if(e.details&&e.details.dir&&e.details.dir!==''){
+        if(!k.details)k.details = {}
+        if(e.details && e.details.dir && e.details.dir !== ''){
             k.details.dir = e.details.dir
         }
         if(config.useUTC === true)k.details.isUTC = config.useUTC;
@@ -94,8 +89,8 @@ module.exports = function(s,config,lang){
         if(!k)k={};
         e.dir = s.getVideoDirectory(e)
         k.dir = e.dir.toString()
-        if(s.group[e.ke].mon[e.id].childNode){
-            s.cx({f:'insertCompleted',d:s.group[e.ke].mon_conf[e.id],k:k},s.group[e.ke].mon[e.id].childNodeId);
+        if(s.group[e.ke].activeMonitors[e.id].childNode){
+            s.cx({f:'insertCompleted',d:s.group[e.ke].rawMonitorConfigurations[e.id],k:k},s.group[e.ke].activeMonitors[e.id].childNodeId);
         }else{
             //get file directory
             k.fileExists = fs.existsSync(k.dir+k.file)
@@ -113,6 +108,7 @@ module.exports = function(s,config,lang){
             }
             if(k.fileExists===true){
                 //close video row
+                k.details = {}
                 k.stat = fs.statSync(k.dir+k.file)
                 k.filesize = k.stat.size
                 k.filesizeMB = parseFloat((k.filesize/1000000).toFixed(2))
@@ -145,8 +141,8 @@ module.exports = function(s,config,lang){
                         })
                     })
                     .on('close',function(){
-                        clearTimeout(s.group[e.ke].mon[e.id].recordingChecker)
-                        clearTimeout(s.group[e.ke].mon[e.id].streamChecker)
+                        clearTimeout(s.group[e.ke].activeMonitors[e.id].recordingChecker)
+                        clearTimeout(s.group[e.ke].activeMonitors[e.id].streamChecker)
                         s.cx({
                             f:'created_file',
                             mid:e.id,
@@ -174,7 +170,18 @@ module.exports = function(s,config,lang){
                     //purge over max
                     s.purgeDiskForGroup(e)
                     //send new diskUsage values
-                    s.setDiskUsedForGroup(e,k.filesizeMB)
+                    var storageIndex = s.getVideoStorageIndex(e)
+                    if(storageIndex){
+                        s.setDiskUsedForGroupAddStorage(e,{
+                            size: k.filesizeMB,
+                            storageIndex: storageIndex
+                        })
+                    }else{
+                        s.setDiskUsedForGroup(e,k.filesizeMB)
+                    }
+                    s.onBeforeInsertCompletedVideoExtensions.forEach(function(extender){
+                        extender(e,k)
+                    })
                     s.insertDatabaseRow(e,k,callback)
                     s.insertCompletedVideoExtensions.forEach(function(extender){
                         extender(e,k)
@@ -216,7 +223,15 @@ module.exports = function(s,config,lang){
                         time: s.nameToTime(filename),
                         end: s.formattedTime(new Date,'YYYY-MM-DD HH:mm:ss')
                     },'GRP_'+e.ke);
-                    s.setDiskUsedForGroup(e,-(r.size / 1000000))
+                    var storageIndex = s.getVideoStorageIndex(e)
+                    if(storageIndex){
+                        s.setDiskUsedForGroupAddStorage(e,{
+                            size: -(r.size / 1000000),
+                            storageIndex: storageIndex
+                        })
+                    }else{
+                        s.setDiskUsedForGroup(e,-(r.size / 1000000))
+                    }
                     s.sqlQuery('DELETE FROM Videos WHERE `mid`=? AND `ke`=? AND `time`=?',queryValues,function(err){
                         if(err){
                             s.systemLog(lang['File Delete Error'] + ' : '+e.ke+' : '+' : '+e.id,err)
@@ -270,7 +285,15 @@ module.exports = function(s,config,lang){
                         time: s.nameToTime(filename),
                         end: s.formattedTime(new Date,'YYYY-MM-DD HH:mm:ss')
                     },'GRP_'+video.ke);
-                    s.setDiskUsedForGroup(video,-(video.size / 1000000))
+                    var storageIndex = s.getVideoStorageIndex(video)
+                    if(storageIndex){
+                        s.setDiskUsedForGroupAddStorage(video,{
+                            size: -(video.size / 1000000),
+                            storageIndex: storageIndex
+                        })
+                    }else{
+                        s.setDiskUsedForGroup(video,-(video.size / 1000000))
+                    }
                     fs.unlink(video.dir+filename,function(err){
                         fs.stat(video.dir+filename,function(err){
                             if(!err){
@@ -334,8 +357,9 @@ module.exports = function(s,config,lang){
         }
         if(forceCheck === true || config.insertOrphans === true){
             if(!checkMax){
-                checkMax = config.orphanedVideoCheckMax
+                checkMax = config.orphanedVideoCheckMax || 2
             }
+
             var videosDirectory = s.getVideoDirectory(monitor)// + s.formattedTime(video.time) + '.' + video.ext
             fs.readdir(videosDirectory,function(err,files){
                 if(files && files.length > 0){
@@ -380,7 +404,7 @@ module.exports = function(s,config,lang){
     }
     s.streamMp4FileOverHttp = function(filePath,req,res){
         var ext = filePath.split('.')
-        ext = filePath[filePath.length - 1]
+        ext = ext[ext.length - 1]
         var total = fs.statSync(filePath).size;
         if (req.headers['range']) {
             try{
@@ -392,15 +416,15 @@ module.exports = function(s,config,lang){
                 var end = partialend ? parseInt(partialend, 10) : total-1;
                 var chunksize = (end-start)+1;
                 var file = fs.createReadStream(filePath, {start: start, end: end});
-                req.headerWrite={ 'Content-Range': 'bytes ' + start + '-' + end + '/' + total, 'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': 'video/'+req.ext }
+                req.headerWrite={ 'Content-Range': 'bytes ' + start + '-' + end + '/' + total, 'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': 'video/'+ext }
                 req.writeCode=206
             }catch(err){
-                req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
+                req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+ext};
                 var file = fs.createReadStream(filePath)
                 req.writeCode=200
             }
         } else {
-            req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
+            req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+ext};
             var file = fs.createReadStream(filePath)
             req.writeCode=200
         }
@@ -413,5 +437,117 @@ module.exports = function(s,config,lang){
         })
         file.pipe(res)
         return file
+    }
+    s.createVideoFromTimelapse = function(timelapseFrames,framesPerSecond,callback){
+        framesPerSecond = parseInt(framesPerSecond)
+        if(!framesPerSecond || isNaN(framesPerSecond))framesPerSecond = 2
+        var frames = timelapseFrames.reverse()
+        var ke = frames[0].ke
+        var mid = frames[0].mid
+        var finalFileName = frames[0].filename.split('.')[0] + '_' + frames[frames.length - 1].filename.split('.')[0] + `-${framesPerSecond}fps`
+        var concatFiles = []
+        var createLocation
+        frames.forEach(function(frame,frameNumber){
+            var selectedDate = frame.filename.split('T')[0]
+            var fileLocationMid = `${frame.ke}/${frame.mid}_timelapse/${selectedDate}/`
+            frame.details = s.parseJSON(frame.details)
+            var fileLocation
+            if(frame.details.dir){
+                fileLocation = `${s.checkCorrectPathEnding(frame.details.dir)}`
+            }else{
+                fileLocation = `${s.dir.videos}`
+            }
+            fileLocation = `${fileLocation}${fileLocationMid}${frame.filename}`
+            concatFiles.push(fileLocation)
+            if(frameNumber === 0){
+                createLocation = fileLocationMid
+            }
+        })
+        if(concatFiles.length > 30){
+            var commandTempLocation = `${s.dir.streams}${ke}/${mid}/mergeJpegs_${finalFileName}.sh`
+            var finalMp4OutputLocation = `${s.dir.fileBin}${ke}/${mid}/${finalFileName}.mp4`
+            if(!s.group[ke].activeMonitors[mid].buildingTimelapseVideo){
+                if(!fs.existsSync(finalMp4OutputLocation)){
+                    var currentFile = 0
+                    var completionTimeout
+                    var commandString = `ffmpeg -y -pattern_type glob -f image2pipe -vcodec mjpeg -r ${framesPerSecond} -analyzeduration 10 -i - -q:v 1 -c:v libx264 -r ${framesPerSecond} "${finalMp4OutputLocation}"`
+                    fs.writeFileSync(commandTempLocation,commandString)
+                    var videoBuildProcess = spawn('sh',[commandTempLocation])
+                    videoBuildProcess.stderr.on('data',function(data){
+                        // console.log(data.toString())
+                        clearTimeout(completionTimeout)
+                        completionTimeout = setTimeout(function(){
+                            if(currentFile === concatFiles.length - 1){
+                                videoBuildProcess.kill('SIGTERM')
+                            }
+                        },4000)
+                    })
+                    videoBuildProcess.on('exit',function(data){
+                        var timeNow = new Date()
+                        var fileStats = fs.statSync(finalMp4OutputLocation)
+                        var details = {}
+                        s.sqlQuery('INSERT INTO `Files` (ke,mid,details,name,size,time) VALUES (?,?,?,?,?,?)',[ke,mid,s.s(details),finalFileName + '.mp4',fileStats.size,timeNow])
+                        s.setDiskUsedForGroup({ke: ke},fileStats.size / 1000000,'fileBin')
+                        fs.unlink(commandTempLocation,function(){
+
+                        })
+                        delete(s.group[ke].activeMonitors[mid].buildingTimelapseVideo)
+                    })
+                    var readFile = function(){
+                        var filePath = concatFiles[currentFile]
+                        // console.log(filePath,currentFile,'/',concatFiles.length - 1)
+                        fs.readFile(filePath,function(err,buffer){
+                            if(!err)videoBuildProcess.stdin.write(buffer)
+                            if(currentFile === concatFiles.length - 1){
+                                //is last
+
+                            }else{
+                                setTimeout(function(){
+                                    ++currentFile
+                                    readFile()
+                                },1/framesPerSecond)
+                            }
+                        })
+                    }
+                    readFile()
+                    s.group[ke].activeMonitors[mid].buildingTimelapseVideo = videoBuildProcess
+                    callback({
+                        ok: true,
+                        fileExists: false,
+                        fileLocation: finalMp4OutputLocation,
+                        msg: lang['Started Building']
+                    })
+                }else{
+                    callback({
+                        ok: false,
+                        fileExists: true,
+                        fileLocation: finalMp4OutputLocation,
+                        msg: lang['Already exists']
+                    })
+                }
+            }else{
+                callback({
+                    ok: false,
+                    fileExists: false,
+                    fileLocation: finalMp4OutputLocation,
+                    msg: lang.Building
+                })
+            }
+        }else{
+            callback({
+                ok: false,
+                fileExists: false,
+                msg: lang.notEnoughFramesText1
+            })
+        }
+    }
+    s.getVideoStorageIndex = function(video){
+        var details = s.parseJSON(video.details) || {}
+        var storageId = details.storageId
+        if(s.group[video.ke] && s.group[video.ke].activeMonitors[video.id] && s.group[video.ke].activeMonitors[video.id].addStorageId)storageId = s.group[video.ke].activeMonitors[video.id].addStorageId
+        if(storageId){
+            return s.group[video.ke].addStorageUse[storageId]
+        }
+        return null
     }
 }

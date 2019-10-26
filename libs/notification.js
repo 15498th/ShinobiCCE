@@ -50,7 +50,7 @@ module.exports = function(s,config,lang){
             var onEventTriggerForDiscord = function(d,filter){
                 // d = event object
                 //discord bot
-                if(filter.discord && d.mon.details.detector_discordbot === '1' && !s.group[d.ke].mon[d.id].detector_discordbot){
+                if(filter.discord && s.group[d.ke].discordBot && d.mon.details.detector_discordbot === '1' && !s.group[d.ke].activeMonitors[d.id].detector_discordbot){
                     var detector_discordbot_timeout
                     if(!d.mon.details.detector_discordbot_timeout||d.mon.details.detector_discordbot_timeout===''){
                         detector_discordbot_timeout = 1000*60*10;
@@ -58,16 +58,16 @@ module.exports = function(s,config,lang){
                         detector_discordbot_timeout = parseFloat(d.mon.details.detector_discordbot_timeout)*1000*60;
                     }
                     //lock mailer so you don't get emailed on EVERY trigger event.
-                    s.group[d.ke].mon[d.id].detector_discordbot=setTimeout(function(){
+                    s.group[d.ke].activeMonitors[d.id].detector_discordbot = setTimeout(function(){
                         //unlock so you can mail again.
-                        clearTimeout(s.group[d.ke].mon[d.id].detector_discordbot);
-                        delete(s.group[d.ke].mon[d.id].detector_discordbot);
-                    },detector_discordbot_timeout);
+                        clearTimeout(s.group[d.ke].activeMonitors[d.id].detector_discordbot);
+                        delete(s.group[d.ke].activeMonitors[d.id].detector_discordbot);
+                    },detector_discordbot_timeout)
                     var files = []
                     var sendAlert = function(){
                         s.discordMsg({
                             author: {
-                              name: s.group[d.ke].mon_conf[d.id].name,
+                              name: s.group[d.ke].rawMonitorConfigurations[d.id].name,
                               icon_url: config.iconURL
                             },
                             title: lang.Event+' - '+d.screenshotName,
@@ -84,7 +84,7 @@ module.exports = function(s,config,lang){
                         s.mergeDetectorBufferChunks(d,function(mergedFilepath,filename){
                             s.discordMsg({
                                 author: {
-                                  name: s.group[d.ke].mon_conf[d.id].name,
+                                  name: s.group[d.ke].rawMonitorConfigurations[d.id].name,
                                   icon_url: config.iconURL
                                 },
                                 title: filename,
@@ -102,8 +102,10 @@ module.exports = function(s,config,lang){
                             ],d.ke)
                         })
                     }
-                    s.getRawSnapshotFromMonitor(d.mon,function(data){
-                        if((data[data.length-2] === 0xFF && data[data.length-1] === 0xD9)){
+                    s.getRawSnapshotFromMonitor(d.mon,{
+                        secondsInward: d.mon.details.snap_seconds_inward
+                    },function(data){
+                        if(data[data.length - 2] === 0xFF && data[data.length - 1] === 0xD9){
                             d.screenshotBuffer = data
                             files.push({
                                 attachment: d.screenshotBuffer,
@@ -251,7 +253,7 @@ module.exports = function(s,config,lang){
             filter.mail = true
         }
         var onEventTriggerForEmail = function(d,filter){
-            if(filter.mail && config.mail && !s.group[d.ke].mon[d.id].detector_mail && d.mon.details.detector_mail === '1'){
+            if(filter.mail && config.mail && !s.group[d.ke].activeMonitors[d.id].detector_mail && d.mon.details.detector_mail === '1'){
                 s.sqlQuery('SELECT mail FROM Users WHERE ke=? AND details NOT LIKE ?',[d.ke,'%"sub"%'],function(err,r){
                     r=r[0];
                     var detector_mail_timeout
@@ -261,10 +263,10 @@ module.exports = function(s,config,lang){
                         detector_mail_timeout = parseFloat(d.mon.details.detector_mail_timeout)*1000*60;
                     }
                     //lock mailer so you don't get emailed on EVERY trigger event.
-                    s.group[d.ke].mon[d.id].detector_mail=setTimeout(function(){
+                    s.group[d.ke].activeMonitors[d.id].detector_mail=setTimeout(function(){
                         //unlock so you can mail again.
-                        clearTimeout(s.group[d.ke].mon[d.id].detector_mail);
-                        delete(s.group[d.ke].mon[d.id].detector_mail);
+                        clearTimeout(s.group[d.ke].activeMonitors[d.id].detector_mail);
+                        delete(s.group[d.ke].activeMonitors[d.id].detector_mail);
                     },detector_mail_timeout);
                     var files = []
                     var mailOptions = {
@@ -287,36 +289,42 @@ module.exports = function(s,config,lang){
                     }
                     if(d.mon.details.detector_mail_send_video === '1'){
                         s.mergeDetectorBufferChunks(d,function(mergedFilepath,filename){
-                            s.nodemailer.sendMail({
-                                from: config.mail.from,
-                                to: r.mail,
-                                subject: filename,
-                                html: '',
-                                attachments: [
-                                    {
-                                        filename: filename,
-                                        content: fs.readFileSync(mergedFilepath)
-                                    }
-                                ]
-                            }, (error, info) => {
-                                if (error) {
-                                    s.systemLog(lang.MailError,error)
-                                    return false;
+                            fs.readFile(mergedFilepath,function(err,buffer){
+                                if(buffer){
+                                    s.nodemailer.sendMail({
+                                        from: config.mail.from,
+                                        to: r.mail,
+                                        subject: filename,
+                                        html: '',
+                                        attachments: [
+                                            {
+                                                filename: filename,
+                                                content: buffer
+                                            }
+                                        ]
+                                    }, (error, info) => {
+                                        if (error) {
+                                            s.systemLog(lang.MailError,error)
+                                            return false;
+                                        }
+                                    })
                                 }
                             })
                         })
                     }
                     if(d.screenshotBuffer){
                         files.push({
-                            filename: d.screenshotName+'.jpg',
+                            filename: d.screenshotName + '.jpg',
                             content: d.screenshotBuffer
                         })
                         sendMail()
                     }else{
-                        s.getRawSnapshotFromMonitor(d.mon,function(data){
+                        s.getRawSnapshotFromMonitor(d.mon,{
+                            secondsInward: d.mon.details.snap_seconds_inward
+                        },function(data){
                             d.screenshotBuffer = data
                             files.push({
-                                filename: d.screenshotName+'.jpg',
+                                filename: d.screenshotName + '.jpg',
                                 content: data
                             })
                             sendMail()

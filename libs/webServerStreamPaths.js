@@ -10,7 +10,6 @@ var spawn = require('child_process').spawn;
 var httpProxy = require('http-proxy');
 var proxy = httpProxy.createProxyServer({})
 var ejs = require('ejs');
-var CircularJSON = require('circular-json');
 module.exports = function(s,config,lang,app){
     /**
     * Page : Get Embed Stream
@@ -22,10 +21,10 @@ module.exports = function(s,config,lang,app){
                 res.end(user.lang['Not Permitted'])
                 return
             }
-            if(s.group[req.params.ke]&&s.group[req.params.ke].mon[req.params.id]){
-                if(s.group[req.params.ke].mon[req.params.id].isStarted === true){
+            if(s.group[req.params.ke]&&s.group[req.params.ke].activeMonitors[req.params.id]){
+                if(s.group[req.params.ke].activeMonitors[req.params.id].isStarted === true){
                     req.params.uid=user.uid;
-                    s.renderPage(req,res,config.renderPaths.embed,{data:req.params,baseUrl:req.protocol+'://'+req.hostname,config:config,lang:user.lang,mon:CircularJSON.parse(CircularJSON.stringify(s.group[req.params.ke].mon_conf[req.params.id])),originalURL:s.getOriginalUrl(req)});
+                    s.renderPage(req,res,config.renderPaths.embed,{data:req.params,baseUrl:req.protocol+'://'+req.hostname,config: s.getConfigWithBranding(req.hostname),lang:user.lang,mon:CircularJSON.parse(CircularJSON.stringify(s.group[req.params.ke].rawMonitorConfigurations[req.params.id])),originalURL:s.getOriginalUrl(req)});
                     res.end()
                 }else{
                     res.end(user.lang['Cannot watch a monitor that isn\'t running.'])
@@ -40,7 +39,7 @@ module.exports = function(s,config,lang,app){
      */
     app.get([config.webPaths.apiPrefix+':auth/mp4/:ke/:id/:channel/s.mp4',config.webPaths.apiPrefix+':auth/mp4/:ke/:id/s.mp4',config.webPaths.apiPrefix+':auth/mp4/:ke/:id/:channel/s.ts',config.webPaths.apiPrefix+':auth/mp4/:ke/:id/s.ts'], function (req, res) {
         s.auth(req.params,function(user){
-            if(!s.group[req.params.ke] || !s.group[req.params.ke].mon[req.params.id]){
+            if(!s.group[req.params.ke] || !s.group[req.params.ke].activeMonitors[req.params.id]){
                 res.status(404);
                 res.end('404 : Monitor not found');
                 return
@@ -50,7 +49,7 @@ module.exports = function(s,config,lang,app){
                     if(req.params.channel){
                         Channel = parseInt(req.params.channel)+config.pipeAddition
                     }
-                    var mp4frag = s.group[req.params.ke].mon[req.params.id].mp4frag[Channel];
+                    var mp4frag = s.group[req.params.ke].activeMonitors[req.params.id].mp4frag[Channel];
                     var errorMessage = 'MP4 Stream is not enabled'
                     if(!mp4frag){
                         res.status(503);
@@ -105,7 +104,7 @@ module.exports = function(s,config,lang,app){
         }else{
             s.auth(req.params,function(user){
                 s.checkChildProxy(req.params,function(){
-                    if(s.group[req.params.ke]&&s.group[req.params.ke].mon[req.params.id]){
+                    if(s.group[req.params.ke]&&s.group[req.params.ke].activeMonitors[req.params.id]){
                         if(user.permissions.watch_stream==="0"||user.details.sub&&user.details.allmonitors!=='1'&&user.details.monitors.indexOf(req.params.id)===-1){
                             res.end(user.lang['Not Permitted'])
                             return
@@ -113,9 +112,9 @@ module.exports = function(s,config,lang,app){
 
                         var Emitter
                         if(!req.params.channel){
-                            Emitter = s.group[req.params.ke].mon[req.params.id].emitter
+                            Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitter
                         }else{
-                            Emitter = s.group[req.params.ke].mon[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
+                            Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
                         }
                         res.writeHead(200, {
                         'Content-Type': 'multipart/x-mixed-replace; boundary=shinobi',
@@ -123,33 +122,35 @@ module.exports = function(s,config,lang,app){
                         'Connection': 'keep-alive',
                         'Pragma': 'no-cache'
                         });
-                        var contentWriter,content = fs.readFileSync(config.defaultMjpeg,'binary');
-                        res.write("--shinobi\r\n");
-                        res.write("Content-Type: image/jpeg\r\n");
-                        res.write("Content-Length: " + content.length + "\r\n");
-                        res.write("\r\n");
-                        res.write(content,'binary');
-                        res.write("\r\n");
-                        var ip = s.getClientIp(req)
-                        s.camera('watch_on',{
-                            id : req.params.id,
-                            ke : req.params.ke
-                        },{
-                            id : req.params.auth + ip + req.headers['user-agent']
-                        })
-                        Emitter.on('data',contentWriter=function(d){
-                            content = d;
+                        var contentWriter
+                        fs.readFile(config.defaultMjpeg,'binary',function(err,content){
+                            res.write("--shinobi\r\n");
+                            res.write("Content-Type: image/jpeg\r\n");
+                            res.write("Content-Length: " + content.length + "\r\n");
+                            res.write("\r\n");
                             res.write(content,'binary');
-                        })
-                        res.on('close', function () {
-                            Emitter.removeListener('data',contentWriter)
-                            s.camera('watch_off',{
+                            res.write("\r\n");
+                            var ip = s.getClientIp(req)
+                            s.camera('watch_on',{
                                 id : req.params.id,
                                 ke : req.params.ke
                             },{
                                 id : req.params.auth + ip + req.headers['user-agent']
                             })
-                        });
+                            Emitter.on('data',contentWriter=function(d){
+                                content = d;
+                                res.write(content,'binary');
+                            })
+                            res.on('close', function () {
+                                Emitter.removeListener('data',contentWriter)
+                                s.camera('watch_off',{
+                                    id : req.params.id,
+                                    ke : req.params.ke
+                                },{
+                                    id : req.params.auth + ip + req.headers['user-agent']
+                                })
+                            })
+                        })
                     }else{
                         res.end();
                     }
@@ -212,20 +213,20 @@ module.exports = function(s,config,lang,app){
             s.checkChildProxy(req.params,function(){
                 var Emitter,chunkChannel
                 if(!req.params.channel){
-                    Emitter = s.group[req.params.ke].mon[req.params.id].emitter
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[req.params.ke].mon[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
                     chunkChannel = parseInt(req.params.channel)+config.pipeAddition
                 }
-                if(s.group[req.params.ke].mon[req.params.id].firstStreamChunk[chunkChannel]){
+                if(s.group[req.params.ke].activeMonitors[req.params.id].firstStreamChunk[chunkChannel]){
                     //variable name of contentWriter
                     var contentWriter
                     //set headers
                     res.setHeader('Content-Type', 'video/x-flv');
                     res.setHeader('Access-Control-Allow-Origin','*');
                     //write first frame on stream
-                    res.write(s.group[req.params.ke].mon[req.params.id].firstStreamChunk[chunkChannel])
+                    res.write(s.group[req.params.ke].activeMonitors[req.params.id].firstStreamChunk[chunkChannel])
                     var ip = s.getClientIp(req)
                     s.camera('watch_on',{
                         id : req.params.id,
@@ -262,10 +263,10 @@ module.exports = function(s,config,lang,app){
             s.checkChildProxy(req.params,function(){
                 var Emitter,chunkChannel
                 if(!req.params.channel){
-                    Emitter = s.group[req.params.ke].mon[req.params.id].emitter
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitter
                     chunkChannel = 'MAIN'
                 }else{
-                    Emitter = s.group[req.params.ke].mon[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
                     chunkChannel = parseInt(req.params.channel)+config.pipeAddition
                 }
                 //variable name of contentWriter
@@ -312,9 +313,9 @@ module.exports = function(s,config,lang,app){
                 if(!req.query.feed){req.query.feed='1'}
                 var Emitter
                 if(!req.params.feed){
-                    Emitter = s.group[req.params.ke].mon[req.params.id].streamIn[req.query.feed]
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].streamIn[req.query.feed]
                 }else{
-                    Emitter = s.group[req.params.ke].mon[req.params.id].emitterChannel[parseInt(req.params.feed)+config.pipeAddition]
+                    Emitter = s.group[req.params.ke].activeMonitors[req.params.id].emitterChannel[parseInt(req.params.feed)+config.pipeAddition]
                 }
                 var contentWriter
                 var date = new Date();
