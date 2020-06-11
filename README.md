@@ -83,27 +83,7 @@ http://shinobi.video/why
 
 > *A Reddit user, /r/HomeNetworking*
 
-# How to Install and Run
-
-> FOR DOCKER USERS : Docker is not officially supported and is not recommended. The kitematic method is provided for those who wish to quickly test Shinobi. The Docker files included in the master and dev branches are maintained by the community. If you would like support with Docker please find a community member who maintains the Docker files or please refer to Docker's forum.
-
-#### Fast Install (The Ninja Way)
-
-1. Become `root` to use the installer and run Shinobi. Use one of the following to do so.
-
-    - Ubuntu 17.04, 17.10
-        - `sudo su`
-    - CentOS 7
-        - `su`
-    - MacOS 10.7(+)
-        - `su`
-2. Download and run the installer.
-
-```
-bash <(curl -s https://gitlab.com/Shinobi-Systems/Shinobi-Installer/raw/master/shinobi-install.sh)
-```
-
-#### Elaborate Installs
+# Install
 
 Installation Tutorials - http://shinobi.video/docs/start
 
