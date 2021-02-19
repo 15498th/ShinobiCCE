@@ -234,7 +234,7 @@ module.exports = function(s,config,lang){
                     success()
                 }
             }
-            if(params.auth && s.superUsersApi[params.auth]){
+            if(params.auth && JSON.stringify(s.superUsersApi).indexOf(params.auth) > -1){
                 userFound = true
                 userSelected = s.superUsersApi[params.auth].$user
                 foundUser()
