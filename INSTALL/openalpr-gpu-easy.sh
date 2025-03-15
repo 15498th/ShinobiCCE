@@ -1,6 +1,6 @@
 # Install prerequisites
 # this includes all the ones missing from OpenALPR's guide.
-sudo apt install libopencv-dev libtesseract-dev git cmake build-essential libleptonica-dev -y
+sudo apt install libtesseract-dev git cmake build-essential libleptonica-dev -y
 sudo apt install liblog4cplus-dev libcurl3-dev -y
 sudo apt install libleptonica-dev -y
 sudo apt install libcurl4-openssl-dev -y
@@ -17,7 +17,7 @@ mkdir build
 cd build
 
 # setup the compile environment
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_INSTALL_SYSCONFDIR:PATH=/etc –DCOMPILE_GPU=1 ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_INSTALL_SYSCONFDIR:PATH=/etc –DCOMPILE_GPU=1 -D WITH_GPU_DETECTOR=ON ..
 
 # compile the library
 make
@@ -28,3 +28,4 @@ sudo make install
 # Test the library
 wget http://plates.openalpr.com/h786poj.jpg -O lp.jpg
 alpr lp.jpg
+rm lp.jpg

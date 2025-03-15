@@ -1,7 +1,5 @@
-You might be looking for [Shinobi Pro](https://github.com/ShinobiCCTV/Shinobi) which is free for personal use. Get Shinobi Pro for the latest code.
-
-# Shinobi CE
-### GPLv3
+# Shinobi Pro 
+### (Creative Commons v4.0)
 
 Shinobi is the Open Source CCTV Solution written in Node.JS. Designed with multiple account system, Streams by WebSocket, and Save to WebM. Shinobi can record IP Cameras and Local Cameras.
 
@@ -56,7 +54,7 @@ Please be considerate of developer efforts. If you have simple questions, like "
 
 ## Making Suggestions or Feature Requests
 
-You can post suggestions in the Discord #suggestions channel. Please do not treat this channel like a "demands" window. Developer efforts are limited. Much more than many alternatives.
+You can post suggestions on the Forum in the Suggestions category. Please do not treat this channel like a "demands" window. Developer efforts are limited. Much more than many alternatives.
 
 when you have a suggestion please try and make the changes yourself then post a pull request to the `dev` branch. Then we can decide if it's a good change for Shinobi. If you don't know how to go about it and want to have me put it higher on my priority list you can order a support package :) Pretty Ferengi of me... but until we live in a world without money please support Shinobi :) Cheers!
 

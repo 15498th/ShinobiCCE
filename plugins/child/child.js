@@ -28,18 +28,40 @@ sql={
 }
 //get this nodes cpu usage
 s.cpuUsage=function(e){
+    k={}
     switch(s.platform){
+        case'win32':
+            k.cmd="@for /f \"skip=1\" %p in ('wmic cpu get loadpercentage') do @echo %p%"
+        break;
         case'darwin':
-            e="ps -A -o %cpu | awk '{s+=$1} END {print s}'";
+            k.cmd="ps -A -o %cpu | awk '{s+=$1} END {print s}'";
         break;
         case'linux':
-            e="grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage}'";
+            k.cmd='LANG=C top -b -n 2 | grep "^'+config.cpuUsageMarker+'" | awk \'{print $2}\' | tail -n1';
         break;
     }
-    return execSync(e,{encoding:'utf8'});
+    if(config.customCpuCommand){
+      exec(config.customCpuCommand,{encoding:'utf8',detached: true},function(err,d){
+          if(s.isWin===true) {
+              d = d.replace(/(\r\n|\n|\r)/gm, "").replace(/%/g, "")
+          }
+          e(d)
+      });
+    } else if(k.cmd){
+         exec(k.cmd,{encoding:'utf8',detached: true},function(err,d){
+             if(s.isWin===true){
+                 d=d.replace(/(\r\n|\n|\r)/gm,"").replace(/%/g,"")
+             }
+             e(d)
+         });
+    } else{
+        e(0)
+    }
 }
 setInterval(function(){
-    io.emit('c',{f:'cpu',cpu:parseFloat(s.cpuUsage())});
+    s.cpuUsage(function(cpu){
+        io.emit('c',{f:'cpu',cpu:parseFloat(cpu)})
+    })
 },2000);
 //interact with server functions
 s.cx=function(x){io.emit('c',x)}
@@ -105,28 +127,24 @@ s.init=function(x,e){
                 return x.ar;
             }
         break;
-        case'clean':
-            x={keys:Object.keys(e),ar:{}};
-            x.keys.forEach(function(v){
-                if(v!=='record'&&v!=='spawn'&&v!=='running'&&(v!=='time'&&typeof e[v]!=='function')){x.ar[v]=e[v];}
-            });
-            return x.ar;
-        break;
         case'url':
-            auth_details='';
-            if(e.details.muser&&e.details.muser!==''&&e.details.mpass&&e.details.mpass!=='') {
-                auth_details=e.details.muser+':'+e.details.mpass+'@';
+            //build a complete url from pieces
+            e.authd='';
+            if(e.details.muser&&e.details.muser!==''&&e.host.indexOf('@')===-1) {
+                e.authd=e.details.muser+':'+e.details.mpass+'@';
             }
-            if(e.port==80){e.porty=''}else{e.porty=':'+e.port}
-            e.url=e.protocol+'://'+auth_details+e.host+e.porty+e.path;return e.url;
+            if(e.port==80&&e.details.port_force!=='1'){e.porty=''}else{e.porty=':'+e.port}
+            e.url=e.protocol+'://'+e.authd+e.host+e.porty+e.path;return e.url;
         break;
         case'url_no_path':
-            auth_details='';
-            if(e.details.muser&&e.details.muser!==''&&e.details.mpass&&e.details.mpass!=='') {
-                auth_details=e.details.muser+':'+e.details.mpass+'@';
+            e.authd='';
+            if(!e.details.muser){e.details.muser=''}
+            if(!e.details.mpass){e.details.mpass=''}
+            if(e.details.muser!==''&&e.host.indexOf('@')===-1) {
+                e.authd=e.details.muser+':'+e.details.mpass+'@';
             }
-            if(e.port==80){e.porty=''}else{e.porty=':'+e.port}
-            e.url=e.protocol+'://'+auth_details+e.host+e.porty;return e.url;
+            if(e.port==80&&e.details.port_force!=='1'){e.porty=''}else{e.porty=':'+e.port}
+            e.url=e.protocol+'://'+e.authd+e.host+e.porty;return e.url;
         break;
     }
     if(typeof e.callback==='function'){setTimeout(function(){e.callback();delete(e.callback);},2000);}
@@ -231,7 +249,7 @@ s.ffmpeg=function(e,x){
 var cn={};
 io.on('connect', function(d){
     console.log('connected');
-    io.emit('c',{f:'init',socket_key:config.key,u:{name:config.name}})
+    io.emit('c',{f:'init',socketKey:config.key,u:{name:config.name}})
 });
 io.on('c',function(d){
     console.log(d.f);
@@ -262,7 +280,6 @@ io.on('c',function(d){
         case'spawn'://start video
             s.init(0,d.d);
             s.group[d.d.ke].mon[d.d.id]=d.mon;
-            s.init(0,d.d);
             if(!s.group[d.d.ke].mon_conf){s.group[d.d.ke].mon_conf={}}
             if(!s.group[d.d.ke].mon_conf[d.d.id]){s.group[d.d.ke].mon_conf[d.d.id]=s.init('clean',d.d);}
             if(s.group[d.d.ke].mon[d.d.id].spawn&&s.group[d.d.ke].mon[d.d.id].spawn.stdin){return}
@@ -362,3 +379,14 @@ io.on('c',function(d){
 io.on('disconnect',function(d){
     s.connected=false;
 });
+
+//web server
+if(config.port===undefined)config.port = 8080;
+if(config.ip===undefined||config.ip===''||config.ip.indexOf('0.0.0.0')>-1){config.ip='localhost'}else{config.bindip=config.ip};
+var childNodeHTTP = express();
+var childNodeServer = http.createServer(app);
+var childNodeWebsocket = new (require('socket.io'))()
+childNodeServer.listen(config.port,config.bindip,function(){
+    console.log('SHINOBI CHILD NODE RUNNING ON PORT : '+config.port);
+});
+childNodeWebsocket.attach(childNodeServer);

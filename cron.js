@@ -10,7 +10,9 @@ var spawn = require('child_process').spawn;
 var config=require('./conf.json');
 
 //set option defaults
-s={};
+s={
+    utcOffset : moment().utcOffset()
+};
 if(config.cron===undefined)config.cron={};
 if(config.cron.deleteOld===undefined)config.cron.deleteOld=true;
 if(config.cron.deleteOrphans===undefined)config.cron.deleteOrphans=false;
@@ -23,6 +25,7 @@ if(config.cron.deleteFileBins===undefined)config.cron.deleteFileBins=true;
 if(config.cron.interval===undefined)config.cron.interval=1;
 if(config.databaseType===undefined){config.databaseType='mysql'}
 if(config.databaseLogs===undefined){config.databaseLogs=false}
+if(config.useUTC===undefined){config.useUTC=false}
 
 if(!config.ip||config.ip===''||config.ip.indexOf('0.0.0.0')>-1)config.ip='localhost';
 if(!config.videosDir)config.videosDir=__dirname+'/videos/';
@@ -42,6 +45,23 @@ if(databaseOptions.client === 'sqlite3' && databaseOptions.connection.filename =
     databaseOptions.connection.filename = __dirname+"/shinobi.sqlite"
 }
 s.databaseEngine = knex(databaseOptions)
+s.sqlDate = function(value){
+    var dateQueryFunction = ''
+    if(databaseOptions.client === 'sqlite3'){
+        value = value.toLowerCase()
+        if (value.slice(-1) !== 's') {
+            value = value+'s'
+        }
+        dateQueryFunction = "datetime('now', '-"+value+"')"
+    }else{
+        value = value.toUpperCase()
+        if (value.slice(-1) === 'S') {
+            value = value.slice(0, -1);  
+        }
+        dateQueryFunction = "DATE_SUB(NOW(), INTERVAL "+value+")"
+    }
+    return dateQueryFunction
+}
 s.sqlQuery = function(query,values,onMoveOn,hideLog){
     if(!values){values=[]}
     var valuesNotFunction = true;
@@ -110,6 +130,12 @@ s.moment=function(e,x){
     if(!e){e=new Date};if(!x){x='YYYY-MM-DDTHH-mm-ss'};
     return moment(e).format(x);
 }
+s.utcToLocal = function(time){
+    return moment.utc(time).utcOffset(s.utcOffset).format()
+}
+s.localToUtc = function(time){
+    return moment(time).utc()
+}
 s.nameToTime=function(x){x=x.replace('.webm','').replace('.mp4','').split('T'),x[1]=x[1].replace(/-/g,':');x=x.join(' ');return x;}
 io = require('socket.io-client')('ws://'+config.ip+':'+config.port);//connect to master
 s.cx=function(x){x.cronKey=config.cron.key;return io.emit('cron',x)}
@@ -156,7 +182,7 @@ s.checkFilterRules=function(v,callback){
             "where":[{
                 "p1":"end",
                 "p2":"<",
-                "p3":"NOW() - INTERVAL "+(v.d.days*24)+" HOUR",
+                "p3":s.sqlDate(v.d.days+" DAYS"),
                 "p3_type":"function",
             }]
         };
@@ -239,16 +265,22 @@ s.deleteRowsWithNoVideo=function(v,callback){
     ){
         s.alreadyDeletedRowsWithNoVideosOnStart[v.ke]=true;
         es={};
-        s.sqlQuery('SELECT * FROM Videos WHERE ke=? AND status!=0 AND details NOT LIKE \'%"archived":"1"%\' AND time < (NOW() - INTERVAL 10 MINUTE)',[v.ke],function(err,evs){
+        s.sqlQuery('SELECT * FROM Videos WHERE ke=? AND status!=0 AND details NOT LIKE \'%"archived":"1"%\' AND time < '+s.sqlDate('10 MINUTE'),[v.ke],function(err,evs){
             if(evs&&evs[0]){
                 es.del=[];es.ar=[v.ke];
                 evs.forEach(function(ev){
-                    ev.dir=s.getVideoDirectory(ev)+s.moment(ev.time)+'.'+ev.ext;
-                    if(fs.existsSync(ev.dir)!==true){
+                    var details = JSON.parse(ev.details)
+                    var filename = ev.time
+                    var dir = s.getVideoDirectory(ev)+s.moment(filename)+'.'+ev.ext;
+                    var fileExists = fs.existsSync(dir)
+                    if(details.isUTC === true){
+                        filename = s.localToUtc(filename).format('YYYY-MM-DDTHH-mm-ss')
+                        dir = s.getVideoDirectory(ev)+filename+'.'+ev.ext;
+                        fileExists = fs.existsSync(dir)
+                    }
+                    if(fileExists !== true){
                         s.video('delete',ev)
-                        es.del.push('(mid=? AND time=?)');
-                        es.ar.push(ev.mid),es.ar.push(ev.time);
-                        s.tx({f:'video_delete',filename:s.moment(ev.time)+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.moment(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+ev.ke);
+                        s.tx({f:'video_delete',filename:filename+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.moment(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+ev.ke);
                     }
                 });
                 if(es.del.length>0){
@@ -267,10 +299,10 @@ s.deleteRowsWithNoVideo=function(v,callback){
 s.deleteOldLogs=function(v,callback){
     if(!v.d.log_days||v.d.log_days==''){v.d.log_days=10}else{v.d.log_days=parseFloat(v.d.log_days)};
     if(config.cron.deleteLogs===true&&v.d.log_days!==0){
-        s.sqlQuery("DELETE FROM Logs WHERE ke=? AND `time` < DATE_SUB(NOW(), INTERVAL ? DAY)",[v.ke,v.d.log_days],function(err,rrr){
+        s.sqlQuery("DELETE FROM Logs WHERE ke=? AND `time` < "+s.sqlDate('? DAYS'),[v.ke,v.d.log_days],function(err,rrr){
             callback()
             if(err)return console.error(err);
-            if(rrr.affectedRows.length>0){
+            if(rrr.affectedRows && rrr.affectedRows.length>0){
                 s.cx({f:'deleteLogs',msg:rrr.affectedRows+' SQL rows older than '+v.d.log_days+' days deleted',ke:v.ke,time:moment()})
             }
         })
@@ -282,10 +314,10 @@ s.deleteOldLogs=function(v,callback){
 s.deleteOldEvents=function(v,callback){
     if(!v.d.event_days||v.d.event_days==''){v.d.event_days=10}else{v.d.event_days=parseFloat(v.d.event_days)};
     if(config.cron.deleteEvents===true&&v.d.event_days!==0){
-        s.sqlQuery("DELETE FROM Events WHERE ke=? AND `time` < DATE_SUB(NOW(), INTERVAL ? DAY)",[v.ke,v.d.event_days],function(err,rrr){
+        s.sqlQuery("DELETE FROM Events WHERE ke=? AND `time` < "+s.sqlDate('? DAYS'),[v.ke,v.d.event_days],function(err,rrr){
             callback()
             if(err)return console.error(err);
-            if(rrr.affectedRows.length>0){
+            if(rrr.affectedRows && rrr.affectedRows.length>0){
                 s.cx({f:'deleteEvents',msg:rrr.affectedRows+' SQL rows older than '+v.d.event_days+' days deleted',ke:v.ke,time:moment()})
             }
         })
@@ -297,7 +329,7 @@ s.deleteOldEvents=function(v,callback){
 s.deleteOldFileBins=function(v,callback){
     if(!v.d.fileBin_days||v.d.fileBin_days==''){v.d.fileBin_days=10}else{v.d.fileBin_days=parseFloat(v.d.fileBin_days)};
     if(config.cron.deleteFileBins===true&&v.d.fileBin_days!==0){
-        var fileBinQuery = ' FROM Files WHERE ke=? AND `date` < DATE_SUB(NOW(), INTERVAL ? DAY)';
+        var fileBinQuery = " FROM Files WHERE ke=? AND `date` < "+s.sqlDate('? DAYS');
         s.sqlQuery("SELECT *"+fileBinQuery,[v.ke,v.d.fileBin_days],function(err,files){
             if(files&&files[0]){
                 //delete the files
@@ -310,7 +342,7 @@ s.deleteOldFileBins=function(v,callback){
                 s.sqlQuery("DELETE"+fileBinQuery,[v.ke,v.d.fileBin_days],function(err,rrr){
                     callback()
                     if(err)return console.error(err);
-                    if(rrr.affectedRows.length>0){
+                    if(rrr.affectedRows && rrr.affectedRows.length>0){
                         s.cx({f:'deleteFileBins',msg:rrr.affectedRows+' files older than '+v.d.fileBin_days+' days deleted',ke:v.ke,time:moment()})
                     }
                 })
@@ -385,6 +417,7 @@ s.processUser = function(number,rows){
         //no user object given
         return
     }
+    console.log(v)
     if(!s.alreadyDeletedRowsWithNoVideosOnStart[v.ke]){
         s.alreadyDeletedRowsWithNoVideosOnStart[v.ke]=false;
     }
@@ -398,6 +431,9 @@ s.processUser = function(number,rows){
         //days to keep videos
         if(!v.d.days||v.d.days==''){v.d.days=5}else{v.d.days=parseFloat(v.d.days)};
         s.sqlQuery('SELECT * FROM Monitors WHERE ke=?', [v.ke], function(err,rr) {
+            if(!v.d.filters||v.d.filters==''){
+                v.d.filters={};
+            }
             rr.forEach(function(b,m){
                 b.details=JSON.parse(b.details);
                 if(b.details.max_keep_days&&b.details.max_keep_days!==''){
@@ -419,17 +455,22 @@ s.processUser = function(number,rows){
                         },{
                             "p1":"end",
                             "p2":"<",
-                            "p3":"NOW() - INTERVAL "+(parseFloat(b.details.max_keep_days)*24)+" HOUR",
+                            "p3":s.sqlDate(b.details.max_keep_days+" DAYS"),
                             "p3_type":"function",
                         }]
                     };
                 }
             })
             s.deleteOldLogs(v,function(){
+                console.log('deleteOldLogs')
                 s.deleteOldFileBins(v,function(){
+                    console.log('deleteOldFileBins')
                     s.deleteOldEvents(v,function(){
+                        console.log('deleteOldEvents')
                         s.checkFilterRules(v,function(){
+                            console.log('checkFilterRules')
                             s.deleteRowsWithNoVideo(v,function(){
+                                console.log('deleteRowsWithNoVideo')
                                 s.checkForOrphanedFiles(v,function(){
                                     //done user, unlock current, and do next
                                     s.overlapLock[v.ke]=false;
@@ -441,6 +482,8 @@ s.processUser = function(number,rows){
                 })
             })
         })
+    }else{
+        s.processUser(number+1,rows)
     }
 }
 //recursive function
